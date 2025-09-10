@@ -38,44 +38,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Auth check function
   const checkAuth = useCallback(async () => {
     setLoading(true);
+    console.log("AuthProvider: Checking authentication...");
 
     try {
-      // Check localStorage for stored auth data
-      const storedAuth = localStorage.getItem("sniply_auth");
+      // Always check authentication by calling /auth/me
+      // This will work with both localStorage user data and HttpOnly cookies
+      const response = await apiService.getCurrentUser();
 
-      if (storedAuth) {
-        const authData = JSON.parse(storedAuth);
-
-        if (authData.token) {
-          try {
-            const response = await apiService.getCurrentUser();
-
-            if (response.success && response.data) {
-              setAuthenticated(true);
-              setUser(response.data);
-            } else {
-              localStorage.removeItem("sniply_auth");
-              localStorage.removeItem("sniply_user");
-              setAuthenticated(false);
-              setUser(null);
-            }
-          } catch (error) {
-            console.error("Token validation failed:", error);
-            localStorage.removeItem("sniply_auth");
-            localStorage.removeItem("sniply_user");
-            setAuthenticated(false);
-            setUser(null);
-          }
-        } else {
-          setAuthenticated(false);
-          setUser(null);
-        }
+      if (response.success && response.data) {
+        console.log(
+          "AuthProvider: Authentication successful",
+          response.data.email
+        );
+        setAuthenticated(true);
+        setUser(response.data);
+        // Update stored user data with fresh data from server
+        localStorage.setItem("sniply_user", JSON.stringify(response.data));
       } else {
+        console.log("AuthProvider: No valid authentication found");
+        // No valid authentication, clear any stale data
+        localStorage.removeItem("sniply_user");
         setAuthenticated(false);
         setUser(null);
       }
     } catch (error) {
-      console.error("Auth check error:", error);
+      console.error("AuthProvider: Auth check failed:", error);
+      // Clear any stale data on auth failure
+      localStorage.removeItem("sniply_user");
       setAuthenticated(false);
       setUser(null);
     } finally {
@@ -88,31 +77,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     checkAuth();
   }, [checkAuth]); // Run only once on mount
 
-  // Listen for localStorage changes (for cross-tab authentication)
+  // Check auth when page becomes visible (useful for OAuth redirects)
   useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === "sniply_auth") {
-        // Token was added/updated, re-validate
-        checkAuth();
-      } else if (e.key === "sniply_auth" && !e.newValue) {
-        // Token was removed, clear auth state
-        setAuthenticated(false);
-        setUser(null);
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        // Page became visible, check auth in case OAuth just completed
+        console.log("AuthProvider: Page became visible, checking auth...");
+        // Add a small delay to ensure cookie is set after OAuth redirect
+        setTimeout(() => {
+          checkAuth();
+        }, 100);
       }
     };
 
-    // Listen for custom auth token set event (for OAuth flow)
-    const handleAuthTokenSet = () => {
-      console.log("Auth token set event received, re-checking authentication");
+    const handleFocus = () => {
+      // Window gained focus, check auth
+      console.log("AuthProvider: Window gained focus, checking auth...");
       checkAuth();
     };
 
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [checkAuth]);
+
+  // Listen for user data changes (for cross-tab authentication)
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "sniply_user") {
+        if (e.newValue) {
+          // User data was added/updated, re-validate
+          checkAuth();
+        } else {
+          // User data was removed, clear auth state
+          setAuthenticated(false);
+          setUser(null);
+        }
+      }
+    };
+
     window.addEventListener("storage", handleStorageChange);
-    window.addEventListener("auth-token-set", handleAuthTokenSet);
 
     return () => {
       window.removeEventListener("storage", handleStorageChange);
-      window.removeEventListener("auth-token-set", handleAuthTokenSet);
     };
   }, [checkAuth, setAuthenticated, setUser]);
 
@@ -196,7 +207,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
-      localStorage.removeItem("sniply_auth");
       localStorage.removeItem("sniply_user");
       setAuthenticated(false);
       setUser(null);

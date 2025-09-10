@@ -2,7 +2,6 @@
 
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import Dashboard from "@/components/dashboard/Dashboard";
-import { apiService } from "@/services/api";
 import { useStore } from "@/store/useStore";
 import { Button } from "@heroui/react";
 import { Icon } from "@iconify/react/dist/iconify.js";
@@ -70,25 +69,16 @@ function LandingPage() {
   );
 }
 
-// Component that handles OAuth token processing
+// Component that handles OAuth errors from URL
 function HomeContent() {
   const searchParams = useSearchParams();
 
-  // Handle OAuth token and errors from URL
+  // Handle OAuth errors from URL (token is now in HttpOnly cookie)
   useEffect(() => {
-    const token = searchParams.get("token");
     const error = searchParams.get("error");
     const errorDescription = searchParams.get("error_description");
 
-    if (token) {
-      // Set token in localStorage and clear URL
-      apiService.setToken(token);
-      // Clear the token from URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-
-      // Trigger a custom event to notify AuthProvider to re-check authentication
-      window.dispatchEvent(new CustomEvent("auth-token-set"));
-    } else if (error) {
+    if (error) {
       // Handle OAuth errors
       console.error("OAuth error:", error, errorDescription);
       // Clear the error from URL
