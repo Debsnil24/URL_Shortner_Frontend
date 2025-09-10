@@ -77,34 +77,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     checkAuth();
   }, [checkAuth]); // Run only once on mount
 
-  // Check auth when page becomes visible (useful for OAuth redirects)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        // Page became visible, check auth in case OAuth just completed
-        console.log("AuthProvider: Page became visible, checking auth...");
-        // Add a small delay to ensure cookie is set after OAuth redirect
-        setTimeout(() => {
-          checkAuth();
-        }, 100);
-      }
-    };
-
-    const handleFocus = () => {
-      // Window gained focus, check auth
-      console.log("AuthProvider: Window gained focus, checking auth...");
-      checkAuth();
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("focus", handleFocus);
-
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("focus", handleFocus);
-    };
-  }, [checkAuth]);
-
   // Listen for user data changes (for cross-tab authentication)
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
