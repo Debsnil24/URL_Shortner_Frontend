@@ -85,6 +85,9 @@ function HomeContent() {
       apiService.setToken(token);
       // Clear the token from URL
       window.history.replaceState({}, document.title, window.location.pathname);
+
+      // Trigger a custom event to notify AuthProvider to re-check authentication
+      window.dispatchEvent(new CustomEvent("auth-token-set"));
     } else if (error) {
       // Handle OAuth errors
       console.error("OAuth error:", error, errorDescription);

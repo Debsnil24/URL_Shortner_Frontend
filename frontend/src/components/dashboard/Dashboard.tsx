@@ -1,6 +1,6 @@
 "use client";
 
-import { useAuthSimple as useAuth } from "@/hooks/useAuthSimple";
+import { useAuth } from "@/components/auth/AuthProvider";
 import { useStore } from "@/store/useStore";
 import { Button } from "@heroui/react";
 import { Icon } from "@iconify/react/dist/iconify.js";

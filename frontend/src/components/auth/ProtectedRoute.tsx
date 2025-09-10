@@ -1,6 +1,6 @@
 "use client";
 
-import { useAuthSimple as useAuth } from "@/hooks/useAuthSimple";
+import { useAuth } from "@/components/auth/AuthProvider";
 import { Spinner } from "@heroui/react";
 
 interface ProtectedRouteProps {
@@ -13,6 +13,9 @@ export default function ProtectedRoute({
   fallback,
 }: ProtectedRouteProps) {
   const { isAuthenticated, isLoading } = useAuth();
+
+  // Debug logging to see what ProtectedRoute is receiving
+  console.log("ProtectedRoute values:", { isAuthenticated, isLoading });
 
   // Show loading spinner while checking authentication
   if (isLoading) {
