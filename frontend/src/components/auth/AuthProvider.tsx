@@ -6,12 +6,9 @@ import { useEffect } from "react";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const {
-    isAuthenticated,
-    user,
     setAuthenticated,
     setUser,
     setLoading,
-    isLoading,
   } = useStore();
 
   // Run auth check only once at the app level
@@ -64,7 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     checkAuth();
-  }, []); // Run only once on mount
+  }, [setAuthenticated, setLoading, setUser]); // Run only once on mount
 
   return <>{children}</>;
 }

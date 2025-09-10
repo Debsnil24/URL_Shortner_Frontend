@@ -8,7 +8,7 @@ import { Button } from "@heroui/react";
 import { Icon } from "@iconify/react/dist/iconify.js";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 
 // Landing page component for unauthenticated users
 function LandingPage() {
@@ -70,7 +70,8 @@ function LandingPage() {
   );
 }
 
-export default function Home() {
+// Component that handles OAuth token processing
+function HomeContent() {
   const searchParams = useSearchParams();
 
   // Handle OAuth token and errors from URL
@@ -97,5 +98,13 @@ export default function Home() {
     <ProtectedRoute fallback={<LandingPage />}>
       <Dashboard />
     </ProtectedRoute>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <HomeContent />
+    </Suspense>
   );
 }
