@@ -26,9 +26,9 @@ export const useAuthSimple = () => {
             } else {
                 return { success: false, error: response.error?.message || 'Login failed' };
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Login error:', error);
-            return { success: false, error: error.message || 'Login failed' };
+            return { success: false, error: error instanceof Error ? error.message : 'Login failed' };
         } finally {
             setLoading(false);
         }
@@ -52,9 +52,9 @@ export const useAuthSimple = () => {
             } else {
                 return { success: false, error: response.error?.message || 'Signup failed' };
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Signup error:', error);
-            return { success: false, error: error.message || 'Signup failed' };
+            return { success: false, error: error instanceof Error ? error.message : 'Signup failed' };
         } finally {
             setLoading(false);
         }
