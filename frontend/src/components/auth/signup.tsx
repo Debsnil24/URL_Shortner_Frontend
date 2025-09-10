@@ -1,4 +1,4 @@
-import { useAuthSimple as useAuth } from "@/hooks/useAuthSimple";
+import { useAuth } from "@/components/auth/AuthProvider";
 import { useStore } from "@/store/useStore";
 import { Button, Input } from "@heroui/react";
 import { Icon } from "@iconify/react/dist/iconify.js";
