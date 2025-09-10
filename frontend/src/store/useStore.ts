@@ -4,6 +4,9 @@ interface User {
     id: string
     email: string
     name: string
+    first_name?: string
+    last_name?: string
+    provider?: 'email' | 'google' | 'apple'
 }
 
 interface AppState {
@@ -20,7 +23,7 @@ interface AppState {
     isSupportOpen: boolean
     // Actions
     setAuthenticated: (isAuth: boolean) => void
-    setUser: (user: User) => void
+    setUser: (user: User | null) => void
     setLoading: (loading: boolean) => void
     logout: () => void
     setAuthDialogOpen: (open: boolean) => void

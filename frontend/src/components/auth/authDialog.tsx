@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuthSimple as useAuth } from "@/hooks/useAuthSimple";
 import { useStore } from "@/store/useStore";
 import { Button } from "@heroui/react";
 import { Icon } from "@iconify/react/dist/iconify.js";
@@ -9,6 +10,7 @@ import Signup from "./signup";
 
 export default function AuthDialog() {
   const { isAuthDialogOpen, setAuthDialogOpen, isLogin } = useStore();
+  const { handleGoogleAuth } = useAuth();
 
   return (
     <CustomModal
@@ -29,6 +31,7 @@ export default function AuthDialog() {
           <Button
             variant="solid"
             radius="full"
+            onPress={handleGoogleAuth}
             startContent={
               <Icon icon="devicon:google" className="w-4 h-4 text-gray-700" />
             }

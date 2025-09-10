@@ -1,3 +1,4 @@
+import { useAuthSimple as useAuth } from "@/hooks/useAuthSimple";
 import { useStore } from "@/store/useStore";
 import { Button, Input } from "@heroui/react";
 import { Icon } from "@iconify/react/dist/iconify.js";
@@ -5,11 +6,13 @@ import { useEffect, useState } from "react";
 
 export default function Login() {
   const { setAuthDialogOpen, setIsLogin } = useStore();
+  const { login, isLoading } = useAuth();
   const [formData, setFormData] = useState({
     email: "",
     password: "",
   });
   const [isFormValid, setIsFormValid] = useState(false);
+  const [error, setError] = useState("");
 
   // Check if all fields are filled
   useEffect(() => {
@@ -21,6 +24,21 @@ export default function Login() {
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+    setError(""); // Clear error when user types
+  };
+
+  const handleLogin = async () => {
+    if (!isFormValid) return;
+
+    setError("");
+    const result = await login(formData.email, formData.password);
+
+    if (result.success) {
+      setAuthDialogOpen(false);
+      // User will be automatically redirected to dashboard via ProtectedRoute
+    } else {
+      setError(result.error || "Login failed. Please try again.");
+    }
   };
 
   return (
@@ -71,19 +89,23 @@ export default function Login() {
           Forgot Password?
         </Button>
       </div>
+      {error && (
+        <div className="text-red-400 text-sm text-center bg-red-900/20 border border-red-800 rounded-lg p-3">
+          {error}
+        </div>
+      )}
+
       <Button
         color="primary"
-        isDisabled={!isFormValid}
-        onPress={() => {
-          console.log("Login pressed");
-          setAuthDialogOpen(false);
-        }}
+        isDisabled={!isFormValid || isLoading}
+        isLoading={isLoading}
+        onPress={handleLogin}
         radius="full"
         className={`text-md font-semibold ${
-          !isFormValid ? "opacity-50 cursor-not-allowed" : ""
+          !isFormValid || isLoading ? "opacity-50 cursor-not-allowed" : ""
         }`}
       >
-        Sign In
+        {isLoading ? "Signing In..." : "Sign In"}
       </Button>
       <p className="text-sm text-gray-400 flex justify-center">
         Don&apos;t have an account?&nbsp;

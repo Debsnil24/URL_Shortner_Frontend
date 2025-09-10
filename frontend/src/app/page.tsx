@@ -1,11 +1,17 @@
 "use client";
 
+import ProtectedRoute from "@/components/auth/ProtectedRoute";
+import Dashboard from "@/components/dashboard/Dashboard";
+import { apiService } from "@/services/api";
 import { useStore } from "@/store/useStore";
 import { Button } from "@heroui/react";
 import { Icon } from "@iconify/react/dist/iconify.js";
 import Image from "next/image";
+import { useSearchParams } from "next/navigation";
+import { useEffect } from "react";
 
-export default function Home() {
+// Landing page component for unauthenticated users
+function LandingPage() {
   const { setAuthDialogOpen } = useStore();
 
   return (
@@ -61,5 +67,35 @@ export default function Home() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function Home() {
+  const searchParams = useSearchParams();
+
+  // Handle OAuth token and errors from URL
+  useEffect(() => {
+    const token = searchParams.get("token");
+    const error = searchParams.get("error");
+    const errorDescription = searchParams.get("error_description");
+
+    if (token) {
+      // Set token in localStorage and clear URL
+      apiService.setToken(token);
+      // Clear the token from URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (error) {
+      // Handle OAuth errors
+      console.error("OAuth error:", error, errorDescription);
+      // Clear the error from URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+      // You could show a toast notification here
+    }
+  }, [searchParams]);
+
+  return (
+    <ProtectedRoute fallback={<LandingPage />}>
+      <Dashboard />
+    </ProtectedRoute>
   );
 }

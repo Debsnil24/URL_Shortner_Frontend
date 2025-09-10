@@ -1,3 +1,4 @@
+import { useAuthSimple as useAuth } from "@/hooks/useAuthSimple";
 import { useStore } from "@/store/useStore";
 import { Button, Input } from "@heroui/react";
 import { Icon } from "@iconify/react/dist/iconify.js";
@@ -5,11 +6,15 @@ import { useEffect, useState } from "react";
 
 export default function Signup() {
   const { setAuthDialogOpen, setIsLogin } = useStore();
+  const { signup, isLoading } = useAuth();
   const [formData, setFormData] = useState({
+    firstName: "",
+    lastName: "",
     email: "",
     password: "",
     confirmPassword: "",
   });
+  const [error, setError] = useState("");
 
   const [passwordValidation, setPasswordValidation] = useState({
     minLength: false,
@@ -48,12 +53,24 @@ export default function Signup() {
       passwordValidation.hasSpecialChar;
     const emailValid =
       formData.email.includes("@") && formData.email.includes(".");
+    const nameValid =
+      formData.firstName.trim().length > 0 &&
+      formData.lastName.trim().length > 0;
 
-    setIsFormValid(allPasswordValid && confirmPasswordMatch && emailValid);
-  }, [passwordValidation, confirmPasswordMatch, formData.email]);
+    setIsFormValid(
+      allPasswordValid && confirmPasswordMatch && emailValid && nameValid
+    );
+  }, [
+    passwordValidation,
+    confirmPasswordMatch,
+    formData.email,
+    formData.firstName,
+    formData.lastName,
+  ]);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+    setError(""); // Clear error when user types
 
     if (field === "password") {
       validatePassword(value);
@@ -66,11 +83,66 @@ export default function Signup() {
     }
   };
 
+  const handleSignup = async () => {
+    if (!isFormValid) return;
+
+    setError("");
+    const result = await signup(
+      formData.firstName,
+      formData.lastName,
+      formData.email,
+      formData.password
+    );
+
+    if (result.success) {
+      setAuthDialogOpen(false);
+      // User will be automatically redirected to dashboard via ProtectedRoute
+    } else {
+      setError(result.error || "Signup failed. Please try again.");
+    }
+  };
+
   return (
     <>
       <div>
         <h1 className="text-3xl font-bold text-white">Welcome!</h1>
         <p className="text-sm text-gray-400">Create an account to continue</p>
+      </div>
+      <div className="flex flex-row gap-2">
+        <Input
+          isClearable
+          type="text"
+          placeholder="Enter your first name"
+          value={formData.firstName}
+          onValueChange={(value) => handleInputChange("firstName", value)}
+          startContent={
+            <Icon icon="mdi:people" className="w-5 h-5 text-gray-700" />
+          }
+          label={<p className="text-white ml-1">First Name</p>}
+          labelPlacement="outside"
+          className="text-white"
+          classNames={{
+            clearButton: "text-black",
+            input: ["placeholder:text-xs", "text-black"],
+          }}
+        />
+        <Input
+          isClearable
+          type="text"
+          placeholder="Enter your last name"
+          value={formData.lastName}
+          onValueChange={(value) => handleInputChange("lastName", value)}
+          startContent={
+            <Icon icon="mdi:people-outline" className="w-5 h-5 text-gray-700" />
+          }
+          label={<p className="text-white ml-1">Last Name</p>}
+          labelPlacement="outside"
+          className="text-white"
+          classNames={{
+            clearButton: "text-black",
+            input: ["placeholder:text-xs", "text-black"],
+          }}
+        />
       </div>
       <Input
         isClearable
@@ -168,19 +240,23 @@ export default function Signup() {
         </div>
       </div>
 
+      {error && (
+        <div className="text-red-400 text-sm text-center bg-red-900/20 border border-red-800 rounded-lg p-3">
+          {error}
+        </div>
+      )}
+
       <Button
         color="primary"
-        isDisabled={!isFormValid}
-        onPress={() => {
-          console.log("Signup pressed");
-          setAuthDialogOpen(false);
-        }}
+        isDisabled={!isFormValid || isLoading}
+        isLoading={isLoading}
+        onPress={handleSignup}
         radius="full"
         className={`text-md font-semibold ${
-          !isFormValid ? "opacity-50 cursor-not-allowed" : ""
+          !isFormValid || isLoading ? "opacity-50 cursor-not-allowed" : ""
         }`}
       >
-        Sign Up
+        {isLoading ? "Creating Account..." : "Sign Up"}
       </Button>
       <p className="text-sm text-gray-400 flex justify-center">
         Already have an account!&nbsp;
