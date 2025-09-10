@@ -57,17 +57,9 @@ class ApiService {
                 'Content-Type': 'application/json',
                 ...options.headers,
             },
+            credentials: 'include', // Include cookies in requests
             ...options,
         };
-
-        // Add Authorization header if token exists
-        const token = this.getToken();
-        if (token) {
-            config.headers = {
-                ...config.headers,
-                'Authorization': `Bearer ${token}`,
-            };
-        }
 
         try {
             const response = await fetch(url, config);
@@ -96,29 +88,51 @@ class ApiService {
         }
     }
 
-    private getToken(): string | null {
-        if (typeof window === 'undefined') return null;
-        const authData = localStorage.getItem('sniply_auth');
-        if (authData) {
-            try {
-                const parsed = JSON.parse(authData);
-                return parsed.token;
-            } catch {
-                return null;
-            }
-        }
-        return null;
-    }
-
-    public setToken(token: string): void {
-        if (typeof window === 'undefined') return;
-        localStorage.setItem('sniply_auth', JSON.stringify({ token }));
-    }
-
     private clearAuth(): void {
         if (typeof window === 'undefined') return;
-        localStorage.removeItem('sniply_auth');
         localStorage.removeItem('sniply_user');
+    }
+
+    // Special request method for auth checking that doesn't throw on 401
+    private async requestWithoutAuthError<T>(
+        endpoint: string,
+        options: RequestInit = {}
+    ): Promise<ApiResponse<T>> {
+        const url = `${this.baseURL}${endpoint}`;
+
+        const config: RequestInit = {
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers,
+            },
+            credentials: 'include', // Include cookies in requests
+            ...options,
+        };
+
+        try {
+            const response = await fetch(url, config);
+            const data = await response.json();
+
+            // Handle different status codes - but don't throw on 401 for auth checking
+            if (response.status === 401) {
+                // Return the error response instead of throwing
+                return data;
+            }
+
+            if (response.status === 504) {
+                // Request timeout - don't logout, just throw timeout error
+                throw new Error('Request timeout');
+            }
+
+            if (!response.ok) {
+                throw new Error(data.error?.message || 'Request failed');
+            }
+
+            return data;
+        } catch (error) {
+            console.error('API request failed:', error);
+            throw error;
+        }
     }
 
     // Auth endpoints
@@ -143,7 +157,7 @@ class ApiService {
                     : user.email ? user.email.split('@')[0] : 'User'
             };
 
-            this.setToken(response.data.token);
+            // Store user data in localStorage (token is now in HttpOnly cookie)
             localStorage.setItem('sniply_user', JSON.stringify(transformedUser));
 
             return {
@@ -179,7 +193,7 @@ class ApiService {
                     : user.email ? user.email.split('@')[0] : 'User'
             };
 
-            this.setToken(response.data.token);
+            // Store user data in localStorage (token is now in HttpOnly cookie)
             localStorage.setItem('sniply_user', JSON.stringify(transformedUser));
 
             return {
@@ -195,7 +209,8 @@ class ApiService {
     }
 
     async getCurrentUser(): Promise<ApiResponse<User>> {
-        const response = await this.request<User>('/auth/me');
+        // Use a special method that doesn't throw on 401 for auth checking
+        const response = await this.requestWithoutAuthError<User>('/auth/me');
 
         if (response.success && response.data) {
             // Transform backend user data to include name field
@@ -217,7 +232,15 @@ class ApiService {
     }
 
     async logout(): Promise<void> {
-        this.clearAuth();
+        try {
+            await this.request('/auth/logout', {
+                method: 'POST',
+            });
+        } catch (error) {
+            console.error('Logout request failed:', error);
+        } finally {
+            this.clearAuth();
+        }
     }
 
     // OAuth endpoints
