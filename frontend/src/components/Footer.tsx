@@ -59,21 +59,21 @@ export default function Footer() {
           <Link
             onClick={() => setIsSupportOpen(true)}
             className="hover:underline hover:underline-offset-4"
-            href="#"
+            href="#support"
           >
             Support
           </Link>
           <Link
             onClick={() => setIsPrivacyPolicyOpen(true)}
             className="hover:underline hover:underline-offset-4"
-            href="#"
+            href="#privacy-policy"
           >
             Privacy Policy
           </Link>
           <Link
             onClick={() => setIsTermsOfServiceOpen(true)}
             className="hover:underline hover:underline-offset-4"
-            href="#"
+            href="#terms-of-service"
           >
             Terms of Service
           </Link>
@@ -136,21 +136,21 @@ export function MobileFooter() {
         <Link
           onClick={() => setIsSupportOpen(true)}
           className="hover:underline hover:underline-offset-4"
-          href="#"
+          href="#support"
         >
           Support
         </Link>
         <Link
           onClick={() => setIsPrivacyPolicyOpen(true)}
           className="hover:underline hover:underline-offset-4"
-          href="#"
+          href="#privacy-policy"
         >
           Privacy Policy
         </Link>
         <Link
           onClick={() => setIsTermsOfServiceOpen(true)}
           className="hover:underline hover:underline-offset-4"
-          href="#"
+          href="#terms-of-service"
         >
           Terms of Service
         </Link>

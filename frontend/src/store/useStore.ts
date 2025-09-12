@@ -33,7 +33,7 @@ interface AppState {
     setIsSupportOpen: (open: boolean) => void
 }
 
-export const useStore = create<AppState>((set) => ({
+export const useStore = create<AppState>((set, get) => ({
     // Initial state
     isAuthenticated: false,
     user: null,
@@ -48,9 +48,38 @@ export const useStore = create<AppState>((set) => ({
     setUser: (user) => set({ user }),
     setLoading: (loading) => set({ isLoading: loading }),
     logout: () => set({ isAuthenticated: false, user: null }),
-    setAuthDialogOpen: (open) => set({ isAuthDialogOpen: open }),
-    setIsLogin: (isLogin) => set({ isLogin }),
-    setIsPrivacyPolicyOpen: (open) => set({ isPrivacyPolicyOpen: open }),
-    setIsTermsOfServiceOpen: (open) => set({ isTermsOfServiceOpen: open }),
-    setIsSupportOpen: (open) => set({ isSupportOpen: open }),
+    setAuthDialogOpen: (open) => {
+        set({ isAuthDialogOpen: open });
+        if (open) {
+            // Set hash based on current login state
+            const hash = get().isLogin ? "#login" : "#signup";
+            window.history.pushState({}, "", window.location.pathname + hash);
+        }
+    },
+    setIsLogin: (isLogin) => {
+        set({ isLogin });
+        // Update hash if auth dialog is open
+        if (get().isAuthDialogOpen) {
+            const hash = isLogin ? "#login" : "#signup";
+            window.history.pushState({}, "", window.location.pathname + hash);
+        }
+    },
+    setIsPrivacyPolicyOpen: (open) => {
+        set({ isPrivacyPolicyOpen: open });
+        if (open) {
+            window.history.pushState({}, "", window.location.pathname + "#privacy-policy");
+        }
+    },
+    setIsTermsOfServiceOpen: (open) => {
+        set({ isTermsOfServiceOpen: open });
+        if (open) {
+            window.history.pushState({}, "", window.location.pathname + "#terms-of-service");
+        }
+    },
+    setIsSupportOpen: (open) => {
+        set({ isSupportOpen: open });
+        if (open) {
+            window.history.pushState({}, "", window.location.pathname + "#support");
+        }
+    },
 }))

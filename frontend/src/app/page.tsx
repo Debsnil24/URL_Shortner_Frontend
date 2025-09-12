@@ -3,6 +3,7 @@
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import Dashboard from "@/components/dashboard/Dashboard";
 import { useStore } from "@/store/useStore";
+import { useHashModalRouting } from "@/utils/useHashModalRouting";
 import { Button } from "@heroui/react";
 import { Icon } from "@iconify/react/dist/iconify.js";
 import Image from "next/image";
@@ -72,6 +73,9 @@ function LandingPage() {
 // Component that handles OAuth errors from URL
 function HomeContent() {
   const searchParams = useSearchParams();
+
+  // Use custom hook for hash-based modal routing
+  useHashModalRouting();
 
   // Handle OAuth errors from URL (token is now in HttpOnly cookie)
   useEffect(() => {
