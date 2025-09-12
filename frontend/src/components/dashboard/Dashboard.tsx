@@ -2,13 +2,30 @@
 
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useStore } from "@/store/useStore";
-import { Button } from "@heroui/react";
+import {
+  Button,
+  Dropdown,
+  DropdownItem,
+  DropdownMenu,
+  DropdownTrigger,
+  User,
+} from "@heroui/react";
 import { Icon } from "@iconify/react/dist/iconify.js";
 import Image from "next/image";
 
 export default function Dashboard() {
   const { user } = useStore();
   const { logout } = useAuth();
+
+  const getInitials = () => {
+    const name = user?.name || user?.email?.split("@")[0] || "User";
+    return name
+      .split(" ")
+      .map((word) => word.charAt(0))
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
 
   return (
     <div
@@ -29,23 +46,31 @@ export default function Dashboard() {
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="text-right">
-            <p className="text-sm text-gray-300">Welcome back,</p>
-            <p className="text-white font-medium">
-              {user?.first_name && user?.last_name
-                ? `${user.first_name} ${user.last_name}`
-                : user?.name || user?.email}
-            </p>
+          <div className="">
+            <Dropdown className="backdrop-blur-md border border-white/10 shadow-xl bg-gray-500/20">
+              <DropdownTrigger>
+                <User
+                  name={user?.name}
+                  description={user?.email}
+                  avatarProps={{
+                    src: user?.avatar_url,
+                    fallback: getInitials(),
+                  }}
+                />
+              </DropdownTrigger>
+              <DropdownMenu>
+                <DropdownItem
+                  color="danger"
+                  className="text-danger"
+                  key={"logout"}
+                  onClick={logout}
+                  startContent={<Icon icon="mdi:logout" className="w-4 h-4" />}
+                >
+                  Log Out
+                </DropdownItem>
+              </DropdownMenu>
+            </Dropdown>
           </div>
-          <Button
-            variant="bordered"
-            color="danger"
-            size="sm"
-            onPress={logout}
-            startContent={<Icon icon="mdi:logout" className="w-4 h-4" />}
-          >
-            Logout
-          </Button>
         </div>
       </div>
 
