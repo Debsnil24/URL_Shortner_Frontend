@@ -2,6 +2,7 @@
 
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useStore } from "@/store/useStore";
+import { authToasts, toastBus } from "@/utils/toastUtils";
 import {
   Button,
   Dropdown,
@@ -12,10 +13,21 @@ import {
 } from "@heroui/react";
 import { Icon } from "@iconify/react/dist/iconify.js";
 import Image from "next/image";
+import { useEffect } from "react";
 
 export default function Dashboard() {
   const { user } = useStore();
   const { logout } = useAuth();
+
+  // Consume auth success once when landing on dashboard
+  useEffect(() => {
+    const payload = toastBus.popAuthSuccess();
+    if (!payload) return;
+    if (payload.type === "login") authToasts.loginSuccess();
+    if (payload.type === "signup")
+      authToasts.signupSuccess(payload.firstName ?? "");
+    if (payload.type === "oauth") authToasts.googleAuthSuccess();
+  }, []);
 
   const getInitials = () => {
     const name = user?.name || user?.email?.split("@")[0] || "User";
@@ -54,7 +66,8 @@ export default function Dashboard() {
                   description={user?.email}
                   avatarProps={{
                     src: user?.avatar_url,
-                    fallback: getInitials(),
+                    name: getInitials(),
+                    showFallback: true,
                   }}
                 />
               </DropdownTrigger>

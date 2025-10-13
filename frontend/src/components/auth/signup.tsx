@@ -1,5 +1,6 @@
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useStore } from "@/store/useStore";
+import { authToasts } from "@/utils/toastUtils";
 import { Button, Input } from "@heroui/react";
 import { Icon } from "@iconify/react/dist/iconify.js";
 import { useEffect, useState } from "react";
@@ -14,7 +15,7 @@ export default function Signup() {
     password: "",
     confirmPassword: "",
   });
-  const [error, setError] = useState("");
+  const [, setError] = useState("");
 
   const [passwordValidation, setPasswordValidation] = useState({
     minLength: false,
@@ -98,7 +99,9 @@ export default function Signup() {
       setAuthDialogOpen(false);
       // User will be automatically redirected to dashboard via ProtectedRoute
     } else {
-      setError(result.error || "Signup failed. Please try again.");
+      const message = result.error || "Signup failed. Please try again.";
+      setError(message);
+      authToasts.signupFailed(message);
     }
   };
 
@@ -240,11 +243,7 @@ export default function Signup() {
         </div>
       </div>
 
-      {error && (
-        <div className="text-red-400 text-sm text-center bg-red-900/20 border border-red-800 rounded-lg p-3">
-          {error}
-        </div>
-      )}
+      {/* Errors are handled via toast notifications; no inline error block */}
 
       <Button
         color="primary"

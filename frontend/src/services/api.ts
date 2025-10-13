@@ -1,4 +1,5 @@
 // API service layer for backend communication
+import { toastBus } from '@/utils/toastUtils';
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 export interface ApiResponse<T = unknown> {
@@ -69,8 +70,25 @@ class ApiService {
             // Handle different status codes
             if (response.status === 401) {
                 // Token expired or invalid - clear auth state
+                let wasAuthenticated = false;
+                if (typeof window !== 'undefined') {
+                    // If user data existed, consider it a session timeout
+                    wasAuthenticated = !!localStorage.getItem('sniply_user');
+                }
                 this.clearAuth();
-                throw new Error('Authentication failed');
+                if (wasAuthenticated) {
+                    // Mark session expired so landing page shows a toast gracefully
+                    toastBus.setSessionExpired();
+                }
+                // Return a structured error instead of throwing to avoid noisy stack traces
+                return {
+                    success: false,
+                    message: 'Authentication failed',
+                    error: {
+                        code: 'AUTH_401',
+                        message: (data && (data.error?.message || data.message)) || 'Authentication failed',
+                    },
+                } as ApiResponse<T>;
             }
 
             if (response.status === 504) {
@@ -79,7 +97,7 @@ class ApiService {
             }
 
             if (!response.ok) {
-                throw new Error(data.error?.message || 'Request failed');
+                throw new Error(data.error?.message || data.message || 'Request failed');
             }
 
             return data;

@@ -2,6 +2,7 @@
 
 import { apiService } from "@/services/api";
 import { useStore } from "@/store/useStore";
+import { toastBus } from "@/utils/toastUtils";
 import { createContext, useCallback, useContext, useEffect } from "react";
 
 // Create AuthContext
@@ -54,9 +55,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(response.data);
         // Update stored user data with fresh data from server
         localStorage.setItem("sniply_user", JSON.stringify(response.data));
+
+        // If we were in an OAuth flow but didn't get explicit ?oauth=success, still show success
+        if (toastBus.popPendingOauth()) {
+          toastBus.setAuthSuccess("oauth");
+        }
       } else {
         console.log("AuthProvider: No valid authentication found");
         // No valid authentication, clear any stale data
+        if (isAuthenticated) {
+          // Treat as session expired if we were previously authenticated
+          toastBus.setSessionExpired();
+        }
         localStorage.removeItem("sniply_user");
         setAuthenticated(false);
         setUser(null);
@@ -64,18 +74,65 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error("AuthProvider: Auth check failed:", error);
       // Clear any stale data on auth failure
+      if (isAuthenticated) {
+        // mark session expired; Landing page will show toast
+        toastBus.setSessionExpired();
+      }
       localStorage.removeItem("sniply_user");
       setAuthenticated(false);
       setUser(null);
     } finally {
       setLoading(false);
     }
-  }, [setAuthenticated, setUser, setLoading]);
+  }, [setAuthenticated, setUser, setLoading, isAuthenticated]);
 
   // Run auth check on mount
   useEffect(() => {
     checkAuth();
   }, [checkAuth]); // Run only once on mount
+
+  // Periodic revalidation every 5 minutes, paused when tab hidden
+  useEffect(() => {
+    let intervalId: number | undefined;
+
+    const start = () => {
+      // Run immediately once when (re)starting
+      checkAuth();
+      // Then schedule every 5 minutes
+      intervalId = window.setInterval(() => {
+        if (document.visibilityState === "visible") {
+          checkAuth();
+        }
+      }, 5 * 60 * 1000);
+    };
+
+    const stop = () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = undefined;
+      }
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        start();
+      } else {
+        stop();
+      }
+    };
+
+    // Initialize depending on current visibility
+    if (document.visibilityState === "visible") {
+      start();
+    }
+
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      stop();
+    };
+  }, [checkAuth]);
 
   // Listen for user data changes (for cross-tab authentication)
   useEffect(() => {
@@ -116,11 +173,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(response.data.user);
         console.log("Auth state set, isAuthenticated should be true now");
 
+        // Emit success to be consumed on Dashboard
+        toastBus.setAuthSuccess("login");
+
         return { success: true };
       } else {
+        // Graceful failure: return structured error without throwing
         return {
           success: false,
-          error: response.error?.message || "Login failed",
+          error: response.error?.message || response.message || "Login failed",
         };
       }
     } catch (error: unknown) {
@@ -155,11 +216,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setAuthenticated(true);
         setUser(response.data.user);
 
+        // Emit success to be consumed on Dashboard
+        const firstName =
+          response.data.user?.first_name || response.data.user?.name || "";
+        toastBus.setAuthSuccess("signup", firstName);
+
         return { success: true };
       } else {
         return {
           success: false,
-          error: response.error?.message || "Signup failed",
+          error: response.error?.message || response.message || "Signup failed",
         };
       }
     } catch (error: unknown) {
@@ -179,6 +245,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
+      // Emit logout success to be consumed on Landing page
+      toastBus.setLogoutSuccess();
       localStorage.removeItem("sniply_user");
       setAuthenticated(false);
       setUser(null);
@@ -186,6 +254,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const handleGoogleAuth = () => {
+    // Mark pending OAuth so we can decide later if success toast should fire
+    toastBus.setPendingOauth();
     window.location.href = apiService.getGoogleAuthUrl();
   };
 
