@@ -41,6 +41,11 @@ export interface RegisterRequest {
     last_name: string;
 }
 
+interface RequestConfig {
+    allow401?: boolean;
+    suppressSessionExpiryToast?: boolean;
+}
+
 class ApiService {
     private baseURL: string;
 
@@ -48,63 +53,9 @@ class ApiService {
         this.baseURL = baseURL;
     }
 
-    private async request<T>(
-        endpoint: string,
-        options: RequestInit = {}
-    ): Promise<ApiResponse<T>> {
-        const url = `${this.baseURL}${endpoint}`;
-
-        const config: RequestInit = {
-            headers: {
-                'Content-Type': 'application/json',
-                ...options.headers,
-            },
-            credentials: 'include', // Include cookies in requests
-            ...options,
-        };
-
-        try {
-            const response = await fetch(url, config);
-            const data = await response.json();
-
-            // Handle different status codes
-            if (response.status === 401) {
-                // Token expired or invalid - clear auth state
-                let wasAuthenticated = false;
-                if (typeof window !== 'undefined') {
-                    // If user data existed, consider it a session timeout
-                    wasAuthenticated = !!localStorage.getItem('sniply_user');
-                }
-                this.clearAuth();
-                if (wasAuthenticated) {
-                    // Mark session expired so landing page shows a toast gracefully
-                    toastBus.setSessionExpired();
-                }
-                // Return a structured error instead of throwing to avoid noisy stack traces
-                return {
-                    success: false,
-                    message: 'Authentication failed',
-                    error: {
-                        code: 'AUTH_401',
-                        message: (data && (data.error?.message || data.message)) || 'Authentication failed',
-                    },
-                } as ApiResponse<T>;
-            }
-
-            if (response.status === 504) {
-                // Request timeout - don't logout, just throw timeout error
-                throw new Error('Request timeout');
-            }
-
-            if (!response.ok) {
-                throw new Error(data.error?.message || data.message || 'Request failed');
-            }
-
-            return data;
-        } catch (error) {
-            console.error('API request failed:', error);
-            throw error;
-        }
+    private wasPreviouslyAuthenticated(): boolean {
+        if (typeof window === 'undefined') return false;
+        return !!localStorage.getItem('sniply_user');
     }
 
     private clearAuth(): void {
@@ -112,83 +63,140 @@ class ApiService {
         localStorage.removeItem('sniply_user');
     }
 
-    // Special request method for auth checking that doesn't throw on 401
-    private async requestWithoutAuthError<T>(
+    private normalizeErrorResponse<T>(
+        base: Partial<ApiResponse<T>> | null,
+        fallbackMessage: string,
+        fallbackCode: string
+    ): ApiResponse<T> {
+        const message =
+            base?.error?.message || base?.message || fallbackMessage || 'Request failed';
+        const code = base?.error?.code || fallbackCode;
+
+        return {
+            success: false,
+            message,
+            error: {
+                code,
+                message,
+            },
+            data: base?.data,
+        };
+    }
+
+    private async request<T>(
         endpoint: string,
-        options: RequestInit = {}
+        options: RequestInit = {},
+        config: RequestConfig = {}
     ): Promise<ApiResponse<T>> {
         const url = `${this.baseURL}${endpoint}`;
-
-        const config: RequestInit = {
+        const requestConfig: RequestInit = {
             headers: {
                 'Content-Type': 'application/json',
                 ...options.headers,
             },
-            credentials: 'include', // Include cookies in requests
+            credentials: 'include',
             ...options,
         };
 
-        try {
-            const response = await fetch(url, config);
-            const data = await response.json();
+        const { allow401 = false, suppressSessionExpiryToast = false } = config;
 
-            // Handle different status codes - but don't throw on 401 for auth checking
+        try {
+            const response = await fetch(url, requestConfig);
+            let data: ApiResponse<T> | null = null;
+
+            try {
+                data = (await response.json()) as ApiResponse<T>;
+            } catch {
+                data = null;
+            }
+
             if (response.status === 401) {
-                // Return the error response instead of throwing
-                return data;
+                if (!allow401) {
+                    const wasAuthed = this.wasPreviouslyAuthenticated();
+                    this.clearAuth();
+                    if (wasAuthed && !suppressSessionExpiryToast) {
+                        toastBus.setSessionExpired();
+                    }
+                }
+                return this.normalizeErrorResponse<T>(
+                    data,
+                    'Authentication failed',
+                    'AUTH_401'
+                );
             }
 
             if (response.status === 504) {
-                // Request timeout - don't logout, just throw timeout error
-                throw new Error('Request timeout');
+                return this.normalizeErrorResponse<T>(
+                    data,
+                    'Request timeout',
+                    'GATEWAY_TIMEOUT'
+                );
             }
 
             if (!response.ok) {
-                throw new Error(data.error?.message || 'Request failed');
+                return this.normalizeErrorResponse<T>(
+                    data,
+                    data?.error?.message || data?.message || 'Request failed',
+                    `HTTP_${response.status}`
+                );
             }
 
-            return data;
+            if (data) {
+                return data;
+            }
+
+            return {
+                success: true,
+                message: 'OK',
+            } as ApiResponse<T>;
         } catch (error) {
             console.error('API request failed:', error);
-            throw error;
+            const message =
+                error instanceof Error ? error.message : 'Network error. Please try again.';
+            return this.normalizeErrorResponse<T>(null, message, 'NETWORK_ERROR');
         }
     }
 
-    // Auth endpoints
     async login(credentials: LoginRequest): Promise<ApiResponse<AuthResponse>> {
         const response = await this.request<AuthResponse>('/auth/login', {
             method: 'POST',
             body: JSON.stringify(credentials),
         });
 
-        if (response.success && response.data) {
-            // Check if user data exists
-            if (!response.data.user) {
-                throw new Error('No user data received from server');
-            }
-
-            // Transform backend user data to include name field
-            const user = response.data.user;
-            const transformedUser = {
-                ...user,
-                name: user.first_name && user.last_name
-                    ? `${user.first_name} ${user.last_name}`
-                    : user.email ? user.email.split('@')[0] : 'User'
-            };
-
-            // Store user data in localStorage (token is now in HttpOnly cookie)
-            localStorage.setItem('sniply_user', JSON.stringify(transformedUser));
-
-            return {
-                ...response,
-                data: {
-                    ...response.data,
-                    user: transformedUser
-                }
-            };
+        if (!response.success || !response.data) {
+            return response;
         }
 
-        return response;
+        const user = response.data.user;
+        if (!user) {
+            return this.normalizeErrorResponse<AuthResponse>(
+                response,
+                'No user data received from server',
+                'INVALID_RESPONSE'
+            );
+        }
+
+        const transformedUser = {
+            ...user,
+            name:
+                user.first_name && user.last_name
+                    ? `${user.first_name} ${user.last_name}`
+                    : user.email
+                    ? user.email.split('@')[0]
+                    : 'User',
+        };
+
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('sniply_user', JSON.stringify(transformedUser));
+        }
+
+        return {
+            ...response,
+            data: {
+                ...response.data,
+                user: transformedUser,
+            },
+        };
     }
 
     async register(userData: RegisterRequest): Promise<ApiResponse<AuthResponse>> {
@@ -197,76 +205,92 @@ class ApiService {
             body: JSON.stringify(userData),
         });
 
-        if (response.success && response.data) {
-            // Check if user data exists
-            if (!response.data.user) {
-                throw new Error('No user data received from server');
-            }
-
-            // Transform backend user data to include name field
-            const user = response.data.user;
-            const transformedUser = {
-                ...user,
-                name: user.first_name && user.last_name
-                    ? `${user.first_name} ${user.last_name}`
-                    : user.email ? user.email.split('@')[0] : 'User'
-            };
-
-            // Store user data in localStorage (token is now in HttpOnly cookie)
-            localStorage.setItem('sniply_user', JSON.stringify(transformedUser));
-
-            return {
-                ...response,
-                data: {
-                    ...response.data,
-                    user: transformedUser
-                }
-            };
+        if (!response.success || !response.data) {
+            return response;
         }
 
-        return response;
+        const user = response.data.user;
+        if (!user) {
+            return this.normalizeErrorResponse<AuthResponse>(
+                response,
+                'No user data received from server',
+                'INVALID_RESPONSE'
+            );
+        }
+
+        const transformedUser = {
+            ...user,
+            name:
+                user.first_name && user.last_name
+                    ? `${user.first_name} ${user.last_name}`
+                    : user.email
+                    ? user.email.split('@')[0]
+                    : 'User',
+        };
+
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('sniply_user', JSON.stringify(transformedUser));
+        }
+
+        return {
+            ...response,
+            data: {
+                ...response.data,
+                user: transformedUser,
+            },
+        };
     }
 
     async getCurrentUser(): Promise<ApiResponse<User>> {
-        // Use a special method that doesn't throw on 401 for auth checking
-        const response = await this.requestWithoutAuthError<User>('/auth/me');
+        const response = await this.request<User>(
+            '/auth/me',
+            undefined,
+            {
+                allow401: true,
+                suppressSessionExpiryToast: true,
+            }
+        );
 
-        if (response.success && response.data) {
-            // Transform backend user data to include name field
-            const user = response.data;
-            const transformedUser = {
-                ...user,
-                name: user.first_name && user.last_name
-                    ? `${user.first_name} ${user.last_name}`
-                    : user.email ? user.email.split('@')[0] : 'User'
-            };
-
-            return {
-                ...response,
-                data: transformedUser
-            };
+        if (!response.success || !response.data) {
+            return response;
         }
 
+        const user = response.data;
+        const transformedUser = {
+            ...user,
+            name:
+                user.first_name && user.last_name
+                    ? `${user.first_name} ${user.last_name}`
+                    : user.email
+                    ? user.email.split('@')[0]
+                    : 'User',
+        };
+
+        return {
+            ...response,
+            data: transformedUser,
+        };
+    }
+
+    async logout(): Promise<ApiResponse<null>> {
+        const response = await this.request<null>('/auth/logout', {
+            method: 'POST',
+        });
+
+        if (!response.success) {
+            console.error(
+                'Logout request failed:',
+                response.error?.message || response.message
+            );
+        }
+
+        this.clearAuth();
         return response;
     }
 
-    async logout(): Promise<void> {
-        try {
-            await this.request('/auth/logout', {
-                method: 'POST',
-            });
-        } catch (error) {
-            console.error('Logout request failed:', error);
-        } finally {
-            this.clearAuth();
-        }
-    }
-
-    // OAuth endpoints
     getGoogleAuthUrl(): string {
         return `${this.baseURL}/auth/google`;
     }
-
 }
 
 export const apiService = new ApiService(API_BASE_URL);

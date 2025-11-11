@@ -3,6 +3,7 @@
 import { apiService } from "@/services/api";
 import { useStore } from "@/store/useStore";
 import { toastBus } from "@/utils/toastUtils";
+import { useAuthRevalidation } from "@/hooks/useAuthRevalidation";
 import { createContext, useCallback, useContext, useEffect } from "react";
 
 // Create AuthContext
@@ -86,53 +87,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [setAuthenticated, setUser, setLoading, isAuthenticated]);
 
-  // Run auth check on mount
-  useEffect(() => {
-    checkAuth();
-  }, [checkAuth]); // Run only once on mount
-
-  // Periodic revalidation every 5 minutes, paused when tab hidden
-  useEffect(() => {
-    let intervalId: number | undefined;
-
-    const start = () => {
-      // Run immediately once when (re)starting
-      checkAuth();
-      // Then schedule every 5 minutes
-      intervalId = window.setInterval(() => {
-        if (document.visibilityState === "visible") {
-          checkAuth();
-        }
-      }, 5 * 60 * 1000);
-    };
-
-    const stop = () => {
-      if (intervalId) {
-        clearInterval(intervalId);
-        intervalId = undefined;
-      }
-    };
-
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible") {
-        start();
-      } else {
-        stop();
-      }
-    };
-
-    // Initialize depending on current visibility
-    if (document.visibilityState === "visible") {
-      start();
-    }
-
-    document.addEventListener("visibilitychange", handleVisibility);
-
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibility);
-      stop();
-    };
-  }, [checkAuth]);
+  useAuthRevalidation(checkAuth, {
+    intervalMs: 5 * 60 * 1000,
+  });
 
   // Listen for user data changes (for cross-tab authentication)
   useEffect(() => {

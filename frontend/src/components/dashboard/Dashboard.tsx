@@ -21,12 +21,28 @@ export default function Dashboard() {
 
   // Consume auth success once when landing on dashboard
   useEffect(() => {
+    const handleAuthSuccess = (
+      type: "login" | "signup" | "oauth",
+      firstName?: string
+    ) => {
+      if (type === "login") authToasts.loginSuccess();
+      if (type === "signup") authToasts.signupSuccess(firstName ?? "");
+      if (type === "oauth") authToasts.googleAuthSuccess();
+    };
+
     const payload = toastBus.popAuthSuccess();
-    if (!payload) return;
-    if (payload.type === "login") authToasts.loginSuccess();
-    if (payload.type === "signup")
-      authToasts.signupSuccess(payload.firstName ?? "");
-    if (payload.type === "oauth") authToasts.googleAuthSuccess();
+    if (payload) {
+      handleAuthSuccess(payload.type, payload.firstName);
+    }
+
+    const unsubscribe = toastBus.subscribe((event) => {
+      if (event.type !== "authSuccess") return;
+      handleAuthSuccess(event.payload.variant, event.payload.firstName);
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   const getInitials = () => {

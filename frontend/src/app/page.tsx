@@ -23,6 +23,19 @@ function LandingPage() {
     if (toastBus.popSessionExpired()) {
       authToasts.sessionExpired();
     }
+
+    const unsubscribe = toastBus.subscribe((event) => {
+      if (event.type === "logoutSuccess") {
+        authToasts.logoutSuccess();
+      }
+      if (event.type === "sessionExpired") {
+        authToasts.sessionExpired();
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   return (

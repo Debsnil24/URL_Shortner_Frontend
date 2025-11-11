@@ -12,10 +12,14 @@ export const authToasts = {
   },
 
   signupSuccess: (firstName: string) => {
+    const normalized = typeof firstName === "string" ? firstName.trim() : "";
+    const hasName = normalized.length > 0;
     addToast({
       title: "Account Created!",
       color: "success",
-      description: `Welcome ${firstName}! Your account has been created successfully.`,
+      description: hasName
+        ? `Welcome ${normalized}! Your account has been created successfully.`
+        : "Welcome! Your account has been created successfully.",
     });
   },
 
@@ -82,10 +86,9 @@ export const authToasts = {
 };
 
 // ================================
-// Toast bus helpers (sessionStorage)
+// Toast bus helpers (BroadcastChannel + sessionStorage fallback)
 // ================================
 
-// Keys
 const AUTH_SUCCESS_KEY = "toast:authSuccess"; // value: { type: "login"|"signup"|"oauth", firstName?: string }
 const LOGOUT_SUCCESS_KEY = "toast:logoutSuccess"; // value: "true"
 const SESSION_EXPIRED_KEY = "toast:sessionExpired"; // value: "true"
@@ -93,20 +96,92 @@ const PENDING_OAUTH_KEY = "toast:pendingOauth"; // value: "true"
 
 type AuthSuccessType = "login" | "signup" | "oauth";
 
+type ToastBusEvent =
+  | {
+      type: "authSuccess";
+      payload: { variant: AuthSuccessType; firstName?: string };
+    }
+  | { type: "logoutSuccess" }
+  | { type: "sessionExpired" };
+
+type ToastBusListener = (event: ToastBusEvent) => void;
+
+const listeners = new Set<ToastBusListener>();
+const CHANNEL_NAME = "sniply:toast-bus";
+const CLIENT_ID =
+  typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : Math.random().toString(36).slice(2);
+
+type BroadcastPayload = ToastBusEvent & { __origin?: string };
+
+const getBroadcastChannel = () => {
+  if (typeof window === "undefined") return null;
+  if (!("BroadcastChannel" in window)) return null;
+  return new BroadcastChannel(CHANNEL_NAME);
+};
+
+const broadcastChannel = getBroadcastChannel();
+
+const emitEvent = (event: ToastBusEvent, skipBroadcast = false) => {
+  listeners.forEach((listener) => listener(event));
+  if (!skipBroadcast && broadcastChannel) {
+    const payload: BroadcastPayload = { ...event, __origin: CLIENT_ID };
+    broadcastChannel.postMessage(payload);
+  }
+};
+
+broadcastChannel?.addEventListener(
+  "message",
+  (event: MessageEvent<BroadcastPayload>) => {
+    const payload = event.data;
+    if (!payload || payload.__origin === CLIENT_ID) {
+      return;
+    }
+    const { __origin: _origin, ...rest } = payload;
+    emitEvent(rest, true);
+  }
+);
+
+const persistAuthSuccess = (type: AuthSuccessType, firstName?: string) => {
+  if (typeof window === "undefined") return;
+  const payload = { type, firstName };
+  sessionStorage.setItem(AUTH_SUCCESS_KEY, JSON.stringify(payload));
+};
+
+const persistFlag = (key: string) => {
+  if (typeof window === "undefined") return;
+  sessionStorage.setItem(key, "true");
+};
+
+const clearFlag = (key: string) => {
+  if (typeof window === "undefined") return false;
+  const exists = sessionStorage.getItem(key) === "true";
+  if (exists) {
+    sessionStorage.removeItem(key);
+  }
+  return exists;
+};
+
 export const toastBus = {
   // Setters
   setAuthSuccess: (type: AuthSuccessType, firstName?: string) => {
-    if (typeof window === "undefined") return;
-    const payload = { type, firstName };
-    sessionStorage.setItem(AUTH_SUCCESS_KEY, JSON.stringify(payload));
+    persistAuthSuccess(type, firstName);
+    emitEvent({ type: "authSuccess", payload: { variant: type, firstName } });
   },
   setLogoutSuccess: () => {
-    if (typeof window === "undefined") return;
-    sessionStorage.setItem(LOGOUT_SUCCESS_KEY, "true");
+    persistFlag(LOGOUT_SUCCESS_KEY);
+    emitEvent({ type: "logoutSuccess" });
   },
   setSessionExpired: () => {
-    if (typeof window === "undefined") return;
-    sessionStorage.setItem(SESSION_EXPIRED_KEY, "true");
+    persistFlag(SESSION_EXPIRED_KEY);
+    emitEvent({ type: "sessionExpired" });
+  },
+
+  // Listener management
+  subscribe: (listener: ToastBusListener) => {
+    listeners.add(listener);
+    return () => listeners.delete(listener);
   },
 
   // Poppers (read-once semantics)
@@ -122,16 +197,10 @@ export const toastBus = {
     }
   },
   popLogoutSuccess: (): boolean => {
-    if (typeof window === "undefined") return false;
-    const exists = sessionStorage.getItem(LOGOUT_SUCCESS_KEY) === "true";
-    if (exists) sessionStorage.removeItem(LOGOUT_SUCCESS_KEY);
-    return exists;
+    return clearFlag(LOGOUT_SUCCESS_KEY);
   },
   popSessionExpired: (): boolean => {
-    if (typeof window === "undefined") return false;
-    const exists = sessionStorage.getItem(SESSION_EXPIRED_KEY) === "true";
-    if (exists) sessionStorage.removeItem(SESSION_EXPIRED_KEY);
-    return exists;
+    return clearFlag(SESSION_EXPIRED_KEY);
   },
   // Pending OAuth helpers
   setPendingOauth: () => {

@@ -13,7 +13,6 @@ export default function Login() {
     password: "",
   });
   const [isFormValid, setIsFormValid] = useState(false);
-  const [, setError] = useState("");
 
   // Check if all fields are filled
   useEffect(() => {
@@ -25,13 +24,11 @@ export default function Login() {
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    setError(""); // Clear error when user types
   };
 
   const handleLogin = async () => {
     if (!isFormValid) return;
 
-    setError("");
     const result = await login(formData.email, formData.password);
 
     if (result.success) {
@@ -39,7 +36,6 @@ export default function Login() {
       // User will be automatically redirected to dashboard via ProtectedRoute
     } else {
       const message = result.error || "Login failed. Please try again.";
-      setError(message);
       authToasts.loginFailed(message);
     }
   };

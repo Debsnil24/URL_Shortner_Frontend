@@ -15,7 +15,6 @@ export default function Signup() {
     password: "",
     confirmPassword: "",
   });
-  const [, setError] = useState("");
 
   const [passwordValidation, setPasswordValidation] = useState({
     minLength: false,
@@ -71,7 +70,6 @@ export default function Signup() {
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    setError(""); // Clear error when user types
 
     if (field === "password") {
       validatePassword(value);
@@ -87,7 +85,6 @@ export default function Signup() {
   const handleSignup = async () => {
     if (!isFormValid) return;
 
-    setError("");
     const result = await signup(
       formData.firstName,
       formData.lastName,
@@ -100,7 +97,6 @@ export default function Signup() {
       // User will be automatically redirected to dashboard via ProtectedRoute
     } else {
       const message = result.error || "Signup failed. Please try again.";
-      setError(message);
       authToasts.signupFailed(message);
     }
   };
