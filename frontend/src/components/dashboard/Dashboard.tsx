@@ -156,15 +156,16 @@ export default function Dashboard() {
     });
 
     if (response.success && response.data) {
+      const createdLink = response.data;
       addToast({
         title: "Short link created",
-        description: `${resolveShortUrl(response.data.short_code)}`,
+        description: `${createdLink.shortened_url ?? resolveShortUrl(createdLink.short_code)}`,
         color: "success",
       });
       setNewUrl("");
       setStatsState((prev) => ({
         ...prev,
-        [response.data.short_code]: { loading: false },
+        [createdLink.short_code]: { loading: false },
       }));
       fetchLinks();
     } else {
