@@ -1,5 +1,6 @@
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useStore } from "@/store/useStore";
+import { authToasts } from "@/utils/toastUtils";
 import { Button, Input } from "@heroui/react";
 import { Icon } from "@iconify/react/dist/iconify.js";
 import { useEffect, useState } from "react";
@@ -12,7 +13,6 @@ export default function Login() {
     password: "",
   });
   const [isFormValid, setIsFormValid] = useState(false);
-  const [error, setError] = useState("");
 
   // Check if all fields are filled
   useEffect(() => {
@@ -24,20 +24,19 @@ export default function Login() {
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    setError(""); // Clear error when user types
   };
 
   const handleLogin = async () => {
     if (!isFormValid) return;
 
-    setError("");
     const result = await login(formData.email, formData.password);
 
     if (result.success) {
       setAuthDialogOpen(false);
       // User will be automatically redirected to dashboard via ProtectedRoute
     } else {
-      setError(result.error || "Login failed. Please try again.");
+      const message = result.error || "Login failed. Please try again.";
+      authToasts.loginFailed(message);
     }
   };
 
@@ -89,11 +88,7 @@ export default function Login() {
           Forgot Password?
         </Button>
       </div>
-      {error && (
-        <div className="text-red-400 text-sm text-center bg-red-900/20 border border-red-800 rounded-lg p-3">
-          {error}
-        </div>
-      )}
+      {/* Errors are handled via toast notifications; no inline error block */}
 
       <Button
         color="primary"

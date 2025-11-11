@@ -3,6 +3,7 @@
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import Dashboard from "@/components/dashboard/Dashboard";
 import { useStore } from "@/store/useStore";
+import { authToasts, toastBus } from "@/utils/toastUtils";
 import { useHashModalRouting } from "@/utils/useHashModalRouting";
 import { Button } from "@heroui/react";
 import { Icon } from "@iconify/react/dist/iconify.js";
@@ -13,6 +14,29 @@ import { Suspense, useEffect } from "react";
 // Landing page component for unauthenticated users
 function LandingPage() {
   const { setAuthDialogOpen } = useStore();
+
+  // Show one-shot toasts for logout success / session expired
+  useEffect(() => {
+    if (toastBus.popLogoutSuccess()) {
+      authToasts.logoutSuccess();
+    }
+    if (toastBus.popSessionExpired()) {
+      authToasts.sessionExpired();
+    }
+
+    const unsubscribe = toastBus.subscribe((event) => {
+      if (event.type === "logoutSuccess") {
+        authToasts.logoutSuccess();
+      }
+      if (event.type === "sessionExpired") {
+        authToasts.sessionExpired();
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   return (
     <div
@@ -81,13 +105,22 @@ function HomeContent() {
   useEffect(() => {
     const error = searchParams.get("error");
     const errorDescription = searchParams.get("error_description");
+    const oauth = searchParams.get("oauth");
 
     if (error) {
       // Handle OAuth errors
       console.error("OAuth error:", error, errorDescription);
+      toastBus.clearPendingOauth();
       // Clear the error from URL
       window.history.replaceState({}, document.title, window.location.pathname);
-      // You could show a toast notification here
+      // You could show a toast notification here using authToasts.loginFailed(errorDescription || error)
+    }
+
+    // Mark oauth success so Dashboard can show success toast
+    if (oauth === "success") {
+      toastBus.setAuthSuccess("oauth");
+      toastBus.clearPendingOauth();
+      window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, [searchParams]);
 
