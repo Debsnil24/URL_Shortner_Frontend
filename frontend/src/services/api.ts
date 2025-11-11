@@ -41,6 +41,33 @@ export interface RegisterRequest {
     last_name: string;
 }
 
+export interface ShortUrl {
+    id: string;
+    short_code: string;
+    original_url: string;
+    click_count: number;
+    user_id?: string;
+    created_at?: string;
+    updated_at?: string;
+    expires_at?: string | null;
+    last_visit_at?: string | null;
+    last_visit_user_agent?: string | null;
+    total_visits?: number;
+}
+
+export interface CreateShortUrlRequest {
+    url: string;
+}
+
+export interface UrlStats {
+    short_code: string;
+    original_url: string;
+    click_count: number;
+    total_visits: number;
+    last_visit_at: string | null;
+    last_visit_user_agent: string | null;
+}
+
 interface RequestConfig {
     allow401?: boolean;
     suppressSessionExpiryToast?: boolean;
@@ -141,14 +168,20 @@ class ApiService {
                 );
             }
 
-            if (data) {
-                return data;
+            if (data && typeof data === 'object' && 'success' in data) {
+                return data as ApiResponse<T>;
             }
+
+            const message =
+                data && typeof data === 'object' && 'message' in data && typeof (data as { message: unknown }).message === 'string'
+                    ? (data as { message: string }).message
+                    : 'OK';
 
             return {
                 success: true,
-                message: 'OK',
-            } as ApiResponse<T>;
+                message,
+                data: data as T,
+            };
         } catch (error) {
             console.error('API request failed:', error);
             const message =
@@ -270,6 +303,29 @@ class ApiService {
             ...response,
             data: transformedUser,
         };
+    }
+
+    async listShortUrls(): Promise<ApiResponse<ShortUrl[]>> {
+        return this.request<ShortUrl[]>('/api/urls');
+    }
+
+    async createShortUrl(payload: CreateShortUrlRequest): Promise<ApiResponse<ShortUrl>> {
+        return this.request<ShortUrl>('/api/shorten', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        });
+    }
+
+    async deleteShortUrl(shortCode: string): Promise<ApiResponse<null>> {
+        return this.request<null>(`/api/delete/${encodeURIComponent(shortCode)}`, {
+            method: 'DELETE',
+        });
+    }
+
+    async getShortUrlStats(shortCode: string): Promise<ApiResponse<UrlStats>> {
+        return this.request<UrlStats>(
+            `/api/urls/${encodeURIComponent(shortCode)}/stats`
+        );
     }
 
     async logout(): Promise<ApiResponse<null>> {
