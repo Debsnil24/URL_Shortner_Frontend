@@ -46,6 +46,7 @@ export interface ShortUrl {
     short_code: string;
     original_url: string;
     click_count: number;
+    shortened_url?: string;
     user_id?: string;
     created_at?: string;
     updated_at?: string;
