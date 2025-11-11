@@ -135,10 +135,13 @@ broadcastChannel?.addEventListener(
   "message",
   (event: MessageEvent<BroadcastPayload>) => {
     const payload = event.data;
-    if (!payload || payload.__origin === CLIENT_ID) {
+    if (!payload) {
       return;
     }
-    const { __origin: _origin, ...rest } = payload;
+    const { __origin, ...rest } = payload;
+    if (__origin === CLIENT_ID) {
+      return;
+    }
     emitEvent(rest, true);
   }
 );
