@@ -1,9 +1,11 @@
 "use client";
 
 import { useAuth } from "@/components/auth/AuthProvider";
-import { useStore } from "@/store/useStore";
 import { apiService, ShortUrl, UrlStats } from "@/services/api";
+import { useStore } from "@/store/useStore";
+import { mapApiErrorMessage } from "@/utils/apiUtils";
 import { authToasts, toastBus } from "@/utils/toastUtils";
+import { resolveShortUrl, validateUrl } from "@/utils/urlUtils";
 import {
   addToast,
   Button,
@@ -11,47 +13,21 @@ import {
   DropdownItem,
   DropdownMenu,
   DropdownTrigger,
-  Input,
   Spinner,
   User,
 } from "@heroui/react";
 import { Icon } from "@iconify/react/dist/iconify.js";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import CreateLinkModal from "./CreateLinkModal";
+import LinkListItem from "./LinkListItem";
+import StatsCards from "./StatsCards";
 
 interface StatsState {
   loading: boolean;
   error?: string;
   data?: UrlStats;
 }
-
-const RESERVED_SHORT_DOMAIN = (process.env.NEXT_PUBLIC_SHORT_DOMAIN || "").replace(/\/$/, "");
-
-const resolveShortUrl = (code: string) => {
-  if (typeof window === "undefined") {
-    return `${RESERVED_SHORT_DOMAIN}/${code}`.replace(/^\/+/, "");
-  }
-  const base = RESERVED_SHORT_DOMAIN || window.location.origin;
-  return `${base.replace(/\/$/, "")}/${code}`;
-};
-
-const mapApiErrorMessage = (message: string, code?: string) => {
-  if (!code) return message;
-  switch (code) {
-    case "AUTH_401":
-      return "Authentication required. Please sign in again.";
-    case "HTTP_403":
-      return message || "You do not have permission to perform this action.";
-    case "HTTP_404":
-      return message || "Short link not found.";
-    case "HTTP_410":
-      return message || "This short link has expired.";
-    case "NETWORK_ERROR":
-      return message || "Network error. Please try again.";
-    default:
-      return message;
-  }
-};
 
 export default function Dashboard() {
   const { user, isAuthenticated } = useStore();
@@ -65,6 +41,7 @@ export default function Dashboard() {
   const [deletingCode, setDeletingCode] = useState<string | null>(null);
   const [expandedCode, setExpandedCode] = useState<string | null>(null);
   const [statsState, setStatsState] = useState<Record<string, StatsState>>({});
+  const [isCreateLinkModalOpen, setIsCreateLinkModalOpen] = useState(false);
 
   useEffect(() => {
     const handleAuthSuccess = (
@@ -127,25 +104,9 @@ export default function Dashboard() {
     () => links.reduce((acc, link) => acc + (link.click_count || 0), 0),
     [links]
   );
-  const activeLinks = totalLinks; // Placeholder: backend does not expose "inactive" state yet
+  const activeLinks = useMemo(() => totalLinks, [totalLinks]);
 
-  const validateUrl = (value: string) => {
-    const trimmed = value.trim();
-    if (!trimmed) {
-      return "Please enter a URL.";
-    }
-    try {
-      const parsed = new URL(trimmed);
-      if (!parsed.protocol.startsWith("http")) {
-        return "URL must start with http or https.";
-      }
-      return null;
-    } catch {
-      return "Enter a valid URL (including http/https).";
-    }
-  };
-
-  const handleCreateLink = async () => {
+  const handleCreateLink = useCallback(async () => {
     const error = validateUrl(newUrl);
     setNewUrlError(error);
     if (error) return;
@@ -159,15 +120,19 @@ export default function Dashboard() {
       const createdLink = response.data;
       addToast({
         title: "Short link created",
-        description: `${createdLink.shortened_url ?? resolveShortUrl(createdLink.short_code)}`,
+        description: `${
+          createdLink.shortened_url ?? resolveShortUrl(createdLink.short_code)
+        }`,
         color: "success",
       });
       setNewUrl("");
+      setNewUrlError(null);
       setStatsState((prev) => ({
         ...prev,
         [createdLink.short_code]: { loading: false },
       }));
       fetchLinks();
+      setIsCreateLinkModalOpen(false);
     } else {
       const message = mapApiErrorMessage(
         response.message,
@@ -181,41 +146,44 @@ export default function Dashboard() {
     }
 
     setCreating(false);
-  };
+  }, [newUrl, fetchLinks]);
 
-  const handleDeleteLink = async (code: string) => {
-    setDeletingCode(code);
-    const response = await apiService.deleteShortUrl(code);
-    if (response.success) {
-      addToast({
-        title: "Short link deleted",
-        description: `${code} has been removed`,
-        color: "success",
-      });
-      setLinks((prev) => prev.filter((link) => link.short_code !== code));
-      setStatsState((prev) => {
-        const next = { ...prev };
-        delete next[code];
-        return next;
-      });
-      if (expandedCode === code) {
-        setExpandedCode(null);
+  const handleDeleteLink = useCallback(
+    async (code: string) => {
+      setDeletingCode(code);
+      const response = await apiService.deleteShortUrl(code);
+      if (response.success) {
+        addToast({
+          title: "Short link deleted",
+          description: `${code} has been removed`,
+          color: "success",
+        });
+        setLinks((prev) => prev.filter((link) => link.short_code !== code));
+        setStatsState((prev) => {
+          const next = { ...prev };
+          delete next[code];
+          return next;
+        });
+        if (expandedCode === code) {
+          setExpandedCode(null);
+        }
+      } else {
+        const message = mapApiErrorMessage(
+          response.message,
+          response.error?.code
+        );
+        addToast({
+          title: "Unable to delete link",
+          description: message,
+          color: "danger",
+        });
       }
-    } else {
-      const message = mapApiErrorMessage(
-        response.message,
-        response.error?.code
-      );
-      addToast({
-        title: "Unable to delete link",
-        description: message,
-        color: "danger",
-      });
-    }
-    setDeletingCode(null);
-  };
+      setDeletingCode(null);
+    },
+    [expandedCode]
+  );
 
-  const loadStats = async (code: string) => {
+  const loadStats = useCallback(async (code: string) => {
     setStatsState((prev) => ({
       ...prev,
       [code]: {
@@ -254,19 +222,26 @@ export default function Dashboard() {
         color: "warning",
       });
     }
-  };
+  }, []);
 
-  const toggleStats = (code: string) => {
-    setExpandedCode((current) => {
-      const nextCode = current === code ? null : code;
-      if (nextCode && !statsState[nextCode]?.data && !statsState[nextCode]?.error) {
-        void loadStats(nextCode);
-      }
-      return nextCode;
-    });
-  };
+  const toggleStats = useCallback(
+    (code: string) => {
+      setExpandedCode((current) => {
+        const nextCode = current === code ? null : code;
+        if (
+          nextCode &&
+          !statsState[nextCode]?.data &&
+          !statsState[nextCode]?.error
+        ) {
+          void loadStats(nextCode);
+        }
+        return nextCode;
+      });
+    },
+    [loadStats, statsState]
+  );
 
-  const handleCopy = async (code: string) => {
+  const handleCopy = useCallback(async (code: string) => {
     try {
       await navigator.clipboard.writeText(resolveShortUrl(code));
       addToast({
@@ -282,9 +257,9 @@ export default function Dashboard() {
         color: "danger",
       });
     }
-  };
+  }, []);
 
-  const getInitials = () => {
+  const getInitials = useMemo(() => {
     const name = user?.name || user?.email?.split("@")[0] || "User";
     return name
       .split(" ")
@@ -292,7 +267,25 @@ export default function Dashboard() {
       .join("")
       .toUpperCase()
       .slice(0, 2);
-  };
+  }, [user?.name, user?.email]);
+
+  const handleUrlChange = useCallback(
+    (value: string) => {
+      setNewUrl(value);
+      if (newUrlError) {
+        setNewUrlError(null);
+      }
+    },
+    [newUrlError]
+  );
+
+  const handleModalClose = useCallback((open: boolean) => {
+    setIsCreateLinkModalOpen(open);
+    if (!open) {
+      setNewUrl("");
+      setNewUrlError(null);
+    }
+  }, []);
 
   return (
     <div
@@ -319,7 +312,7 @@ export default function Dashboard() {
                 description={user?.email}
                 avatarProps={{
                   src: user?.avatar_url,
-                  name: getInitials(),
+                  name: getInitials,
                   showFallback: true,
                 }}
               />
@@ -341,101 +334,43 @@ export default function Dashboard() {
 
       <div className="flex-1 p-6">
         <div className="max-w-6xl mx-auto flex flex-col gap-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[{
-              label: "Total Links",
-              value: totalLinks,
-              icon: "mdi:link",
-              color: "text-blue-500",
-            }, {
-              label: "Total Clicks",
-              value: totalClicks,
-              icon: "mdi:cursor-click",
-              color: "text-green-500",
-            }, {
-              label: "Active Links",
-              value: activeLinks,
-              icon: "mdi:check-circle",
-              color: "text-purple-500",
-            }].map((card) => (
-              <div
-                key={card.label}
-                className="bg-gray-800/50 rounded-lg p-6 border border-gray-700"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-gray-400 text-sm">{card.label}</p>
-                    <p className="text-2xl font-bold text-white">{card.value}</p>
-                  </div>
-                  <Icon icon={card.icon} className={`w-8 h-8 ${card.color}`} />
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {isAuthenticated && (
-            <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700">
-              <h2 className="text-xl font-semibold text-white mb-4">
-                Create a Short Link
-              </h2>
-              <div className="flex flex-col md:flex-row gap-4">
-                <Input
-                  type="url"
-                  placeholder="https://example.com/very/long/url"
-                  value={newUrl}
-                  onValueChange={(value) => {
-                    setNewUrl(value);
-                    if (newUrlError) {
-                      setNewUrlError(null);
-                    }
-                  }}
-                  isInvalid={!!newUrlError}
-                  errorMessage={newUrlError || undefined}
-                  startContent={
-                    <Icon icon="mdi:link" className="w-5 h-5 text-gray-700" />
-                  }
-                  labelPlacement="outside"
-                  classNames={{
-                    input: ["placeholder:text-xs", "text-black"],
-                  }}
-                  className="flex-1"
-                />
-                <Button
-                  color="primary"
-                  radius="full"
-                  isLoading={creating}
-                  isDisabled={creating}
-                  onPress={handleCreateLink}
-                  className="text-md font-semibold"
-                  startContent={<Icon icon="mdi:plus" className="w-4 h-4" />}
-                >
-                  Shorten URL
-                </Button>
-              </div>
-              <p className="text-gray-500 text-xs md:text-sm mt-3">
-                Links are tied to your account and can be managed from this dashboard.
-              </p>
-            </div>
-          )}
+          <StatsCards
+            totalLinks={totalLinks}
+            totalClicks={totalClicks}
+            activeLinks={activeLinks}
+          />
 
           <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
               <h2 className="text-xl font-semibold text-white">Your Links</h2>
-              <Button
-                variant="bordered"
-                color="primary"
-                startContent={<Icon icon="mdi:refresh" className="w-4 h-4" />}
-                onPress={fetchLinks}
-                isDisabled={linksLoading}
-              >
-                Refresh
-              </Button>
+              <div className="flex gap-2">
+                {isAuthenticated && (
+                  <Button
+                    color="primary"
+                    startContent={<Icon icon="mdi:plus" className="w-4 h-4" />}
+                    onPress={() => setIsCreateLinkModalOpen(true)}
+                  >
+                    Create Link
+                  </Button>
+                )}
+                <Button
+                  variant="bordered"
+                  color="primary"
+                  startContent={<Icon icon="mdi:refresh" className="w-4 h-4" />}
+                  onPress={fetchLinks}
+                  isDisabled={linksLoading}
+                >
+                  Refresh
+                </Button>
+              </div>
             </div>
 
             {linksLoading ? (
               <div className="flex flex-col items-center justify-center py-16 gap-3">
                 <Spinner size="md" color="primary" />
-                <p className="text-gray-400 text-sm">Loading your short links...</p>
+                <p className="text-gray-400 text-sm">
+                  Loading your short links...
+                </p>
               </div>
             ) : linksError ? (
               <div className="border border-red-500/40 bg-red-500/10 rounded-lg p-6 text-center">
@@ -447,163 +382,41 @@ export default function Dashboard() {
                   icon="mdi:link-off"
                   className="w-16 h-16 text-gray-500 mx-auto mb-4"
                 />
-                <p className="text-gray-400 mb-4">
+                <p className="text-gray-400">
                   No links created yet. Shorten your first URL to get started.
                 </p>
-                <Button
-                  color="primary"
-                  startContent={<Icon icon="mdi:plus" className="w-4 h-4" />}
-                  onPress={() => {
-                    if (isAuthenticated) {
-                      window.scrollTo({ top: 0, behavior: "smooth" });
-                    } else {
-                      addToast({
-                        title: "Sign in required",
-                        description:
-                          "Please sign in to create and manage short links.",
-                        color: "warning",
-                      });
-                    }
-                  }}
-                >
-                  Create Your First Link
-                </Button>
               </div>
             ) : (
               <div className="flex flex-col divide-y divide-gray-700">
-                {links.map((link) => {
-                  const stats = statsState[link.short_code];
-                  const isExpanded = expandedCode === link.short_code;
-                  return (
-                    <div key={link.id || link.short_code} className="py-4">
-                      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 text-sm text-primary">
-                            <a
-                              href={resolveShortUrl(link.short_code)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-lg font-semibold text-primary underline break-all"
-                            >
-                              {resolveShortUrl(link.short_code)}
-                            </a>
-                            <span className="bg-gray-700/60 px-2 py-0.5 rounded-full text-xs text-gray-300">
-                              {link.short_code}
-                            </span>
-                          </div>
-                          <p className="text-sm text-gray-400 truncate mt-1">
-                            {link.original_url}
-                          </p>
-                          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-400 mt-2">
-                            <span className="flex items-center gap-1">
-                              <Icon icon="mdi:cursor-default-click" className="w-3.5 h-3.5" />
-                              {link.click_count} clicks
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="bordered"
-                            className="bg-white/5 text-gray-200 border-gray-600 hover:bg-white/10"
-                            startContent={<Icon icon="mdi:content-copy" className="w-4 h-4" />}
-                            onPress={() => handleCopy(link.short_code)}
-                          >
-                            Copy
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="bordered"
-                            color="primary"
-                            startContent={<Icon icon="mdi:chart-line" className="w-4 h-4" />}
-                            onPress={() => toggleStats(link.short_code)}
-                          >
-                            {isExpanded ? "Hide stats" : "View stats"}
-                          </Button>
-                          <Button
-                            size="sm"
-                            color="danger"
-                            variant="flat"
-                            isLoading={deletingCode === link.short_code}
-                            onPress={() => handleDeleteLink(link.short_code)}
-                            startContent={<Icon icon="mdi:trash-can" className="w-4 h-4" />}
-                          >
-                            Delete
-                          </Button>
-                        </div>
-                      </div>
-
-                      {isExpanded && (
-                        <div className="mt-4 rounded-lg border border-gray-700 bg-gray-900/50 p-4">
-                          {stats?.loading ? (
-                            <div className="flex items-center gap-2 text-gray-400 text-sm">
-                              <Spinner size="sm" color="primary" />
-                              <span>Loading analytics...</span>
-                            </div>
-                          ) : stats?.error ? (
-                            <p className="text-sm text-red-400">{stats.error}</p>
-                          ) : stats?.data ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-300">
-                              <div>
-                                <p className="text-gray-500">Short code</p>
-                                <p className="font-semibold text-white">
-                                  {stats.data.short_code}
-                                </p>
-                              </div>
-                              <div>
-                                <p className="text-gray-500">Original URL</p>
-                                <a
-                                  href={stats.data.original_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-primary underline break-all"
-                                >
-                                  {stats.data.original_url}
-                                </a>
-                              </div>
-                              <div>
-                                <p className="text-gray-500">Total clicks</p>
-                                <p className="font-semibold text-white">
-                                  {stats.data.click_count}
-                                </p>
-                              </div>
-                              <div>
-                                <p className="text-gray-500">Unique visits</p>
-                                <p className="font-semibold text-white">
-                                  {stats.data.total_visits}
-                                </p>
-                              </div>
-                              <div>
-                                <p className="text-gray-500">Last visit at</p>
-                                <p className="font-semibold text-white">
-                                  {stats.data.last_visit_at
-                                    ? new Date(stats.data.last_visit_at).toLocaleString()
-                                    : "No visits recorded"}
-                                </p>
-                              </div>
-                              <div>
-                                <p className="text-gray-500">Last visitor agent</p>
-                                <p className="font-semibold text-white break-words">
-                                  {stats.data.last_visit_user_agent || "Unknown"}
-                                </p>
-                              </div>
-                            </div>
-                          ) : (
-                            <p className="text-gray-400 text-sm">
-                              No analytics available yet.
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                {links.map((link) => (
+                  <LinkListItem
+                    key={link.id || link.short_code}
+                    link={link}
+                    stats={statsState[link.short_code]}
+                    isExpanded={expandedCode === link.short_code}
+                    isDeleting={deletingCode === link.short_code}
+                    onCopy={handleCopy}
+                    onToggleStats={toggleStats}
+                    onDelete={handleDeleteLink}
+                  />
+                ))}
               </div>
             )}
           </div>
         </div>
       </div>
+
+      {isAuthenticated && (
+        <CreateLinkModal
+          isOpen={isCreateLinkModalOpen}
+          onOpenChange={handleModalClose}
+          url={newUrl}
+          error={newUrlError}
+          isLoading={creating}
+          onUrlChange={handleUrlChange}
+          onSubmit={handleCreateLink}
+        />
+      )}
     </div>
   );
 }
