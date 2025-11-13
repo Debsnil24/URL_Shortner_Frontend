@@ -91,6 +91,22 @@ class ApiService {
         localStorage.removeItem('sniply_user');
     }
 
+    /**
+     * Transforms a user object by computing the display name.
+     * Uses first_name + last_name if available, otherwise email prefix, otherwise "User".
+     */
+    private transformUser(user: User): User {
+        return {
+            ...user,
+            name:
+                user.first_name && user.last_name
+                    ? `${user.first_name} ${user.last_name}`
+                    : user.email
+                        ? user.email.split('@')[0]
+                        : 'User',
+        };
+    }
+
     private normalizeErrorResponse<T>(
         base: Partial<ApiResponse<T>> | null,
         fallbackMessage: string,
@@ -210,15 +226,7 @@ class ApiService {
             );
         }
 
-        const transformedUser = {
-            ...user,
-            name:
-                user.first_name && user.last_name
-                    ? `${user.first_name} ${user.last_name}`
-                    : user.email
-                    ? user.email.split('@')[0]
-                    : 'User',
-        };
+        const transformedUser = this.transformUser(user);
 
         if (typeof window !== 'undefined') {
             localStorage.setItem('sniply_user', JSON.stringify(transformedUser));
@@ -252,15 +260,7 @@ class ApiService {
             );
         }
 
-        const transformedUser = {
-            ...user,
-            name:
-                user.first_name && user.last_name
-                    ? `${user.first_name} ${user.last_name}`
-                    : user.email
-                    ? user.email.split('@')[0]
-                    : 'User',
-        };
+        const transformedUser = this.transformUser(user);
 
         if (typeof window !== 'undefined') {
             localStorage.setItem('sniply_user', JSON.stringify(transformedUser));
@@ -289,16 +289,7 @@ class ApiService {
             return response;
         }
 
-        const user = response.data;
-        const transformedUser = {
-            ...user,
-            name:
-                user.first_name && user.last_name
-                    ? `${user.first_name} ${user.last_name}`
-                    : user.email
-                    ? user.email.split('@')[0]
-                    : 'User',
-        };
+        const transformedUser = this.transformUser(response.data);
 
         return {
             ...response,

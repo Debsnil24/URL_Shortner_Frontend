@@ -1,14 +1,5 @@
 import { create } from 'zustand'
-
-interface User {
-    id: string
-    email: string
-    name: string
-    first_name?: string
-    last_name?: string
-    provider?: 'email' | 'google' | 'apple'
-    avatar_url?: string
-}
+import { User } from '@/services/api'
 
 interface AppState {
     // Auth state
