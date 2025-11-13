@@ -1,6 +1,6 @@
 "use client";
 
-import { apiService } from "@/services/api";
+import { apiService, User } from "@/services/api";
 import { useStore } from "@/store/useStore";
 import { toastBus } from "@/utils/toastUtils";
 import { useAuthRevalidation } from "@/hooks/useAuthRevalidation";
@@ -9,7 +9,7 @@ import { createContext, useCallback, useContext, useEffect } from "react";
 // Create AuthContext
 interface AuthContextType {
   isAuthenticated: boolean;
-  user: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  user: User | null;
   isLoading: boolean;
   login: (
     email: string,
@@ -40,7 +40,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Auth check function
   const checkAuth = useCallback(async () => {
     setLoading(true);
-    console.log("AuthProvider: Checking authentication...");
 
     try {
       // Always check authentication by calling /auth/me
@@ -48,10 +47,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const response = await apiService.getCurrentUser();
 
       if (response.success && response.data) {
-        console.log(
-          "AuthProvider: Authentication successful",
-          response.data.email
-        );
         setAuthenticated(true);
         setUser(response.data);
         // Update stored user data with fresh data from server
@@ -62,7 +57,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           toastBus.setAuthSuccess("oauth");
         }
       } else {
-        console.log("AuthProvider: No valid authentication found");
         // No valid authentication, clear any stale data
         if (isAuthenticated) {
           // Treat as session expired if we were previously authenticated
@@ -122,13 +116,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (response.success && response.data) {
         // Set authentication state
-        console.log(
-          "Login successful, setting auth state:",
-          response.data.user
-        );
         setAuthenticated(true);
         setUser(response.data.user);
-        console.log("Auth state set, isAuthenticated should be true now");
 
         // Emit success to be consumed on Dashboard
         toastBus.setAuthSuccess("login");
@@ -225,13 +214,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     logout,
     handleGoogleAuth,
   };
-
-  // Debug logging to see if context values are updating
-  console.log("AuthProvider context values:", {
-    isAuthenticated,
-    user: user?.email,
-    isLoading,
-  });
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
