@@ -104,7 +104,7 @@ export default function Dashboard() {
     () => links.reduce((acc, link) => acc + (link.click_count || 0), 0),
     [links]
   );
-  const activeLinks = useMemo(() => totalLinks, [totalLinks]);
+  const activeLinks = totalLinks;
 
   const handleCreateLink = useCallback(async () => {
     const error = validateUrl(newUrl);
@@ -259,7 +259,7 @@ export default function Dashboard() {
     }
   }, []);
 
-  const getInitials = useMemo(() => {
+  const userInitials = useMemo(() => {
     const name = user?.name || user?.email?.split("@")[0] || "User";
     return name
       .split(" ")
@@ -269,15 +269,12 @@ export default function Dashboard() {
       .slice(0, 2);
   }, [user?.name, user?.email]);
 
-  const handleUrlChange = useCallback(
-    (value: string) => {
-      setNewUrl(value);
-      if (newUrlError) {
-        setNewUrlError(null);
-      }
-    },
-    [newUrlError]
-  );
+  const handleUrlChange = useCallback((value: string) => {
+    setNewUrl(value);
+    // Real-time validation as user types
+    const error = validateUrl(value);
+    setNewUrlError(error);
+  }, []);
 
   const handleModalClose = useCallback((open: boolean) => {
     setIsCreateLinkModalOpen(open);
@@ -312,7 +309,7 @@ export default function Dashboard() {
                 description={user?.email}
                 avatarProps={{
                   src: user?.avatar_url,
-                  name: getInitials,
+                  name: userInitials,
                   showFallback: true,
                 }}
               />

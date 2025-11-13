@@ -1,7 +1,6 @@
 import { Button, Input } from "@heroui/react";
 import { Icon } from "@iconify/react/dist/iconify.js";
 import CustomModal from "../customModal";
-import { validateUrl } from "@/utils/urlUtils";
 
 interface CreateLinkModalProps {
   isOpen: boolean;
