@@ -1,5 +1,5 @@
-import { create } from 'zustand'
 import { User } from '@/services/api'
+import { create } from 'zustand'
 
 interface AppState {
     // Auth state

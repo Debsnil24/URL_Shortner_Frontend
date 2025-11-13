@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Icon } from "@iconify/react/dist/iconify.js";
 
 interface StatsCard {
@@ -13,7 +14,7 @@ interface StatsCardsProps {
   activeLinks: number;
 }
 
-export default function StatsCards({
+function StatsCards({
   totalLinks,
   totalClicks,
   activeLinks,
@@ -58,4 +59,6 @@ export default function StatsCards({
     </div>
   );
 }
+
+export default memo(StatsCards);
 

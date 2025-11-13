@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Button } from "@heroui/react";
 import { Icon } from "@iconify/react/dist/iconify.js";
 import { ShortUrl, UrlStats } from "@/services/api";
@@ -18,7 +19,7 @@ interface LinkListItemProps {
   onDelete: (code: string) => void;
 }
 
-export default function LinkListItem({
+function LinkListItem({
   link,
   stats,
   isExpanded,
@@ -102,4 +103,6 @@ export default function LinkListItem({
     </div>
   );
 }
+
+export default memo(LinkListItem);
 

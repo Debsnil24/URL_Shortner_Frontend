@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Spinner } from "@heroui/react";
 import { UrlStats } from "@/services/api";
 
@@ -7,7 +8,7 @@ interface LinkStatsPanelProps {
   data?: UrlStats;
 }
 
-export default function LinkStatsPanel({
+function LinkStatsPanel({
   loading,
   error,
   data,
@@ -73,4 +74,6 @@ export default function LinkStatsPanel({
     </div>
   );
 }
+
+export default memo(LinkStatsPanel);
 
