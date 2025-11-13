@@ -31,6 +31,7 @@ export function useAuthRevalidation(
 
   const checkAuthRef = useRef(checkAuth);
   const hasRunInitiallyRef = useRef(false);
+  const lastCheckTimeRef = useRef<number | null>(null);
 
   useEffect(() => {
     checkAuthRef.current = checkAuth;
@@ -45,6 +46,7 @@ export function useAuthRevalidation(
 
     const runCheck = () => {
       checkAuthRef.current?.();
+      lastCheckTimeRef.current = Date.now();
     };
 
     const startInterval = () => {
@@ -67,7 +69,16 @@ export function useAuthRevalidation(
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        runCheck();
+        // Only run check if significant time has passed since last check
+        const now = Date.now();
+        const timeSinceLastCheck = lastCheckTimeRef.current
+          ? now - lastCheckTimeRef.current
+          : Infinity;
+
+        // Only refresh if at least the interval time has passed
+        if (timeSinceLastCheck >= intervalMs) {
+          runCheck();
+        }
         hasRunInitiallyRef.current = true;
         startInterval();
       } else {

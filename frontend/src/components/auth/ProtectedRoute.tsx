@@ -14,9 +14,6 @@ export default function ProtectedRoute({
 }: ProtectedRouteProps) {
   const { isAuthenticated, isLoading } = useAuth();
 
-  // Debug logging to see what ProtectedRoute is receiving
-  console.log("ProtectedRoute values:", { isAuthenticated, isLoading });
-
   // Show loading spinner while checking authentication
   if (isLoading) {
     return (

@@ -109,11 +109,11 @@ function HomeContent() {
 
     if (error) {
       // Handle OAuth errors
-      console.error("OAuth error:", error, errorDescription);
       toastBus.clearPendingOauth();
+      // Show user-friendly error message
+      authToasts.loginFailed(errorDescription || error || "Authentication failed");
       // Clear the error from URL
       window.history.replaceState({}, document.title, window.location.pathname);
-      // You could show a toast notification here using authToasts.loginFailed(errorDescription || error)
     }
 
     // Mark oauth success so Dashboard can show success toast
