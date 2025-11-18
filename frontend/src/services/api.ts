@@ -53,7 +53,7 @@ export interface ShortUrl {
     expires_at?: string | null;
     last_visit_at?: string | null;
     last_visit_user_agent?: string | null;
-    total_visits?: number;
+    unique_visitors?: number;
 }
 
 export interface CreateShortUrlRequest {
@@ -64,7 +64,7 @@ export interface UrlStats {
     short_code: string;
     original_url: string;
     click_count: number;
-    total_visits: number;
+    unique_visitors: number;
     last_visit_at: string | null;
     last_visit_user_agent: string | null;
 }

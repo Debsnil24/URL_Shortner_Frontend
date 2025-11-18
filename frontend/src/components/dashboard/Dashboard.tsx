@@ -18,7 +18,7 @@ import {
 } from "@heroui/react";
 import { Icon } from "@iconify/react/dist/iconify.js";
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CreateLinkModal from "./CreateLinkModal";
 import LinkListItem from "./LinkListItem";
 import StatsCards from "./StatsCards";
@@ -42,6 +42,7 @@ export default function Dashboard() {
   const [expandedCode, setExpandedCode] = useState<string | null>(null);
   const [statsState, setStatsState] = useState<Record<string, StatsState>>({});
   const [isCreateLinkModalOpen, setIsCreateLinkModalOpen] = useState(false);
+  const expandedCodeRef = useRef<string | null>(null);
 
   useEffect(() => {
     const handleAuthSuccess = (
@@ -68,6 +69,47 @@ export default function Dashboard() {
     };
   }, []);
 
+  const loadStats = useCallback(async (code: string) => {
+    setStatsState((prev) => ({
+      ...prev,
+      [code]: {
+        loading: true,
+        error: undefined,
+        data: prev[code]?.data,
+      },
+    }));
+
+    const response = await apiService.getShortUrlStats(code);
+    if (response.success && response.data) {
+      setStatsState((prev) => ({
+        ...prev,
+        [code]: {
+          loading: false,
+          data: response.data,
+          error: undefined,
+        },
+      }));
+    } else {
+      const message = mapApiErrorMessage(
+        response.message,
+        response.error?.code
+      );
+      setStatsState((prev) => ({
+        ...prev,
+        [code]: {
+          loading: false,
+          data: undefined,
+          error: message,
+        },
+      }));
+      addToast({
+        title: "Unable to fetch stats",
+        description: message,
+        color: "warning",
+      });
+    }
+  }, []);
+
   const fetchLinks = useCallback(async () => {
     if (!isAuthenticated) {
       setLinks([]);
@@ -80,6 +122,10 @@ export default function Dashboard() {
     const response = await apiService.listShortUrls();
     if (response.success && response.data) {
       setLinks(response.data);
+      // Refresh stats for any currently expanded panels
+      if (expandedCodeRef.current) {
+        void loadStats(expandedCodeRef.current);
+      }
     } else {
       const message = mapApiErrorMessage(
         response.message,
@@ -93,7 +139,7 @@ export default function Dashboard() {
       });
     }
     setLinksLoading(false);
-  }, [isAuthenticated]);
+  }, [isAuthenticated, loadStats]);
 
   useEffect(() => {
     fetchLinks();
@@ -166,6 +212,7 @@ export default function Dashboard() {
         });
         if (expandedCode === code) {
           setExpandedCode(null);
+          expandedCodeRef.current = null;
         }
       } else {
         const message = mapApiErrorMessage(
@@ -183,62 +230,19 @@ export default function Dashboard() {
     [expandedCode]
   );
 
-  const loadStats = useCallback(async (code: string) => {
-    setStatsState((prev) => ({
-      ...prev,
-      [code]: {
-        loading: true,
-        error: undefined,
-        data: prev[code]?.data,
-      },
-    }));
-
-    const response = await apiService.getShortUrlStats(code);
-    if (response.success && response.data) {
-      setStatsState((prev) => ({
-        ...prev,
-        [code]: {
-          loading: false,
-          data: response.data,
-          error: undefined,
-        },
-      }));
-    } else {
-      const message = mapApiErrorMessage(
-        response.message,
-        response.error?.code
-      );
-      setStatsState((prev) => ({
-        ...prev,
-        [code]: {
-          loading: false,
-          data: undefined,
-          error: message,
-        },
-      }));
-      addToast({
-        title: "Unable to fetch stats",
-        description: message,
-        color: "warning",
-      });
-    }
-  }, []);
-
   const toggleStats = useCallback(
     (code: string) => {
       setExpandedCode((current) => {
         const nextCode = current === code ? null : code;
-        if (
-          nextCode &&
-          !statsState[nextCode]?.data &&
-          !statsState[nextCode]?.error
-        ) {
+        expandedCodeRef.current = nextCode;
+        if (nextCode) {
+          // Always reload stats when expanding to get fresh data
           void loadStats(nextCode);
         }
         return nextCode;
       });
     },
-    [loadStats, statsState]
+    [loadStats]
   );
 
   const handleCopy = useCallback(async (code: string) => {

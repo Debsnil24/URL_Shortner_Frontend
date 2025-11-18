@@ -55,7 +55,7 @@ function LinkStatsPanel({
       </div>
       <div>
         <p className="text-gray-500">Unique visits</p>
-        <p className="font-semibold text-white">{data.total_visits}</p>
+        <p className="font-semibold text-white">{data.unique_visitors}</p>
       </div>
       <div>
         <p className="text-gray-500">Last visit at</p>
