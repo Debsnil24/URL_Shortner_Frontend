@@ -184,11 +184,23 @@ class ApiService {
                 );
             }
 
+            if (response.status === 429) {
+                // Preserve backend error code if available, otherwise use HTTP_429
+                const errorCode = data?.error?.code || 'HTTP_429';
+                return this.normalizeErrorResponse<T>(
+                    data,
+                    data?.error?.message || data?.message || 'Too many requests. Please try again later.',
+                    errorCode
+                );
+            }
+
             if (!response.ok) {
+                // Preserve backend error code if available
+                const errorCode = data?.error?.code || `HTTP_${response.status}`;
                 return this.normalizeErrorResponse<T>(
                     data,
                     data?.error?.message || data?.message || 'Request failed',
-                    `HTTP_${response.status}`
+                    errorCode
                 );
             }
 
