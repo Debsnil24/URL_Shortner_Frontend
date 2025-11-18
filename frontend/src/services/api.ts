@@ -69,9 +69,16 @@ export interface UrlStats {
     last_visit_user_agent: string | null;
 }
 
+export interface SupportRequest {
+    name: string;
+    email: string;
+    message: string;
+}
+
 interface RequestConfig {
     allow401?: boolean;
     suppressSessionExpiryToast?: boolean;
+    suppressNetworkErrorLog?: boolean;
 }
 
 class ApiService {
@@ -142,7 +149,7 @@ class ApiService {
             ...options,
         };
 
-        const { allow401 = false, suppressSessionExpiryToast = false } = config;
+        const { allow401 = false, suppressSessionExpiryToast = false, suppressNetworkErrorLog = false } = config;
 
         try {
             const response = await fetch(url, requestConfig);
@@ -177,11 +184,23 @@ class ApiService {
                 );
             }
 
+            if (response.status === 429) {
+                // Preserve backend error code if available, otherwise use HTTP_429
+                const errorCode = data?.error?.code || 'HTTP_429';
+                return this.normalizeErrorResponse<T>(
+                    data,
+                    data?.error?.message || data?.message || 'Too many requests. Please try again later.',
+                    errorCode
+                );
+            }
+
             if (!response.ok) {
+                // Preserve backend error code if available
+                const errorCode = data?.error?.code || `HTTP_${response.status}`;
                 return this.normalizeErrorResponse<T>(
                     data,
                     data?.error?.message || data?.message || 'Request failed',
-                    `HTTP_${response.status}`
+                    errorCode
                 );
             }
 
@@ -200,7 +219,10 @@ class ApiService {
                 data: data as T,
             };
         } catch (error) {
-            console.error('API request failed:', error);
+            // Only log network errors if not suppressed (e.g., during background auth checks)
+            if (!suppressNetworkErrorLog) {
+                console.error('API request failed:', error);
+            }
             const message =
                 error instanceof Error ? error.message : 'Network error. Please try again.';
             return this.normalizeErrorResponse<T>(null, message, 'NETWORK_ERROR');
@@ -282,6 +304,7 @@ class ApiService {
             {
                 allow401: true,
                 suppressSessionExpiryToast: true,
+                suppressNetworkErrorLog: true,
             }
         );
 
@@ -338,6 +361,13 @@ class ApiService {
 
     getGoogleAuthUrl(): string {
         return `${this.baseURL}/auth/google`;
+    }
+
+    async submitSupportRequest(payload: SupportRequest): Promise<ApiResponse<null>> {
+        return this.request<null>('/api/support', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        });
     }
 }
 
