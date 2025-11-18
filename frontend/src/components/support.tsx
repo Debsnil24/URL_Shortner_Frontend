@@ -4,7 +4,7 @@ import { apiService } from "@/services/api";
 import { useStore } from "@/store/useStore";
 import { addToast, Button, Input, Textarea } from "@heroui/react";
 import { Icon } from "@iconify/react/dist/iconify.js";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import CustomModal from "./customModal";
 
 // Field constraints
@@ -25,6 +25,25 @@ export default function Support() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isFormValid, setIsFormValid] = useState(false);
   const [isRateLimited, setIsRateLimited] = useState(false);
+  const prevIsOpenRef = useRef(isSupportOpen);
+
+  // Reset form when modal is closed
+  useEffect(() => {
+    // If modal was open and is now closed, reset the form
+    if (prevIsOpenRef.current && !isSupportOpen) {
+      setFormData({
+        name: "",
+        email: "",
+        message: "",
+      });
+      setErrors({});
+      setIsSubmitting(false);
+      setIsFormValid(false);
+      setIsRateLimited(false);
+    }
+    // Update ref for next render
+    prevIsOpenRef.current = isSupportOpen;
+  }, [isSupportOpen]);
 
   // Validate form
   useEffect(() => {
