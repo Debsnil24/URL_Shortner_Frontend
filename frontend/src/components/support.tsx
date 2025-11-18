@@ -74,6 +74,32 @@ export default function Support() {
     });
   }, [formData]);
 
+  // Synchronous validation function that returns validity
+  const checkFieldValidity = (field: string, value: string): boolean => {
+    const trimmedValue = value.trim();
+    const length = trimmedValue.length;
+
+    switch (field) {
+      case "name":
+        return (
+          length >= FIELD_LIMITS.name.min && length <= FIELD_LIMITS.name.max
+        );
+      case "email":
+        return (
+          length >= FIELD_LIMITS.email.min &&
+          length <= FIELD_LIMITS.email.max &&
+          /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedValue)
+        );
+      case "message":
+        return (
+          length >= FIELD_LIMITS.message.min &&
+          length <= FIELD_LIMITS.message.max
+        );
+      default:
+        return false;
+    }
+  };
+
   const validateField = (field: string, value: string) => {
     const trimmedValue = value.trim();
     const length = trimmedValue.length;
@@ -158,12 +184,18 @@ export default function Support() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate all fields
+    // Validate all fields and update error messages
     validateField("name", formData.name);
     validateField("email", formData.email);
     validateField("message", formData.message);
 
-    if (!isFormValid) {
+    // Check validity synchronously to avoid stale state
+    const nameValid = checkFieldValidity("name", formData.name);
+    const emailValid = checkFieldValidity("email", formData.email);
+    const messageValid = checkFieldValidity("message", formData.message);
+    const formIsValid = nameValid && emailValid && messageValid;
+
+    if (!formIsValid) {
       addToast({
         title: "Validation Error",
         description: "Please fill all fields correctly",
