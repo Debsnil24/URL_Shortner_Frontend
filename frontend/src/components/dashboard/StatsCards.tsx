@@ -41,15 +41,15 @@ function StatsCards({ totalLinks, totalClicks, activeLinks }: StatsCardsProps) {
       {cards.map((card) => (
         <div
           key={card.label}
-          className="bg-gray-800/50 rounded-lg p-2 md:p-6 border border-gray-700 hover:border-gray-600 transition-colors"
+          className="bg-gray-800/50 rounded-lg p-3 md:p-6 border border-gray-700 hover:border-gray-600 transition-colors"
         >
           {/* Mobile Layout: Compact vertical stack */}
-          <div className="flex flex-col items-center gap-1.5 md:hidden">
-            <Icon icon={card.icon} className={`w-5 h-5 ${card.color}`} />
-            <p className="text-white text-base md:text-2xl font-bold leading-tight">
+          <div className="flex flex-col items-center gap-2 md:hidden">
+            <Icon icon={card.icon} className={`w-7 h-7 ${card.color}`} />
+            <p className="text-white text-xl md:text-2xl font-bold leading-tight">
               {card.value}
             </p>
-            <p className="text-gray-400 text-[10px] md:text-sm font-medium text-center leading-tight">
+            <p className="text-gray-400 text-sm font-medium text-center leading-tight">
               {card.label}
             </p>
           </div>
