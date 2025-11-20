@@ -7,6 +7,8 @@ import { mapApiErrorMessage } from "@/utils/apiUtils";
 import { authToasts, toastBus } from "@/utils/toastUtils";
 import { resolveShortUrl, validateUrl } from "@/utils/urlUtils";
 import {
+  Accordion,
+  AccordionItem,
   addToast,
   Button,
   Dropdown,
@@ -150,7 +152,36 @@ export default function Dashboard() {
     () => links.reduce((acc, link) => acc + (link.click_count || 0), 0),
     [links]
   );
-  const activeLinks = totalLinks;
+
+  // Separate active and expired links
+  const { activeLinks, expiredLinks } = useMemo(() => {
+    const now = new Date();
+    const active: ShortUrl[] = [];
+    const expired: ShortUrl[] = [];
+
+    links.forEach((link) => {
+      if (!link.expires_at) {
+        // Links without expiration are considered active
+        active.push(link);
+      } else {
+        try {
+          const expirationDate = new Date(link.expires_at);
+          if (expirationDate.getTime() < now.getTime()) {
+            expired.push(link);
+          } else {
+            active.push(link);
+          }
+        } catch {
+          // If date parsing fails, treat as active
+          active.push(link);
+        }
+      }
+    });
+
+    return { activeLinks: active, expiredLinks: expired };
+  }, [links]);
+
+  const activeLinksCount = activeLinks.length;
 
   const handleCreateLink = useCallback(
     async (expirationData: ExpirationData) => {
@@ -342,7 +373,7 @@ export default function Dashboard() {
           <StatsCards
             totalLinks={totalLinks}
             totalClicks={totalClicks}
-            activeLinks={activeLinks}
+            activeLinks={activeLinksCount}
           />
 
           <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700">
@@ -392,19 +423,68 @@ export default function Dashboard() {
                 </p>
               </div>
             ) : (
-              <div className="flex flex-col divide-y divide-gray-700">
-                {links.map((link) => (
-                  <LinkListItem
-                    key={link.id || link.short_code}
-                    link={link}
-                    stats={statsState[link.short_code]}
-                    isExpanded={expandedCode === link.short_code}
-                    isDeleting={deletingCode === link.short_code}
-                    onCopy={handleCopy}
-                    onToggleStats={toggleStats}
-                    onDelete={handleDeleteLink}
-                  />
-                ))}
+              <div className="flex flex-col gap-6">
+                {/* Active Links Section */}
+                {activeLinks.length > 0 && (
+                  <div className="flex flex-col divide-y divide-gray-700">
+                    {activeLinks.map((link) => (
+                      <LinkListItem
+                        key={link.id || link.short_code}
+                        link={link}
+                        stats={statsState[link.short_code]}
+                        isExpanded={expandedCode === link.short_code}
+                        isDeleting={deletingCode === link.short_code}
+                        onCopy={handleCopy}
+                        onToggleStats={toggleStats}
+                        onDelete={handleDeleteLink}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {/* Expired Links Section - Accordion (closed by default) */}
+                {expiredLinks.length > 0 && (
+                  <Accordion
+                    defaultExpandedKeys={[]} // Closed by default
+                    selectionMode="single"
+                    className="border border-gray-700 rounded-lg"
+                  >
+                    <AccordionItem
+                      key="expired"
+                      aria-label="Expired Links"
+                      title={
+                        <div className="flex items-center gap-2">
+                          <Icon
+                            icon="mdi:clock-alert-outline"
+                            className="w-5 h-5 text-red-400"
+                          />
+                          <span className="text-white font-medium">
+                            Expired Links ({expiredLinks.length})
+                          </span>
+                        </div>
+                      }
+                      classNames={{
+                        trigger: "px-4 py-3 hover:bg-gray-800/50",
+                        content: "px-0 py-0",
+                      }}
+                    >
+                      <div className="flex flex-col divide-y divide-gray-700">
+                        {expiredLinks.map((link) => (
+                          <LinkListItem
+                            key={link.id || link.short_code}
+                            link={link}
+                            stats={statsState[link.short_code]}
+                            isExpanded={expandedCode === link.short_code}
+                            isDeleting={deletingCode === link.short_code}
+                            onCopy={handleCopy}
+                            onToggleStats={toggleStats}
+                            onDelete={handleDeleteLink}
+                          />
+                        ))}
+                      </div>
+                    </AccordionItem>
+                  </Accordion>
+                )}
               </div>
             )}
           </div>
