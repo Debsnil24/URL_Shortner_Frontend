@@ -2,11 +2,16 @@ import { ShortUrl, UrlStats } from "@/services/api";
 import { resolveShortUrl } from "@/utils/urlUtils";
 import { Button } from "@heroui/react";
 import { Icon } from "@iconify/react/dist/iconify.js";
-import { memo, useMemo } from "react";
+import { memo, useEffect, useState } from "react";
 import LinkStatsPanel from "./LinkStatsPanel";
 
-function formatExpirationTime(expiresAt: string | null | undefined): string {
-  if (!expiresAt) return "";
+function formatExpirationTimeCompact(expiresAt: string | null | undefined): {
+  text: string;
+  isExpired: boolean;
+} {
+  if (!expiresAt) {
+    return { text: "", isExpired: false };
+  }
 
   try {
     const expirationDate = new Date(expiresAt);
@@ -14,32 +19,62 @@ function formatExpirationTime(expiresAt: string | null | undefined): string {
     const diffMs = expirationDate.getTime() - now.getTime();
 
     if (diffMs < 0) {
-      return "Expired";
+      return { text: "Expired", isExpired: true };
     }
 
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    const diffHours = Math.floor(
-      (diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)
-    );
-    const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    const totalDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const totalHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const totalMinutes = Math.floor(diffMs / (1000 * 60));
 
-    if (diffDays > 365) {
-      const years = Math.floor(diffDays / 365);
-      return `Expires in ${years} year${years !== 1 ? "s" : ""}`;
-    } else if (diffDays > 30) {
-      const months = Math.floor(diffDays / 30);
-      return `Expires in ${months} month${months !== 1 ? "s" : ""}`;
-    } else if (diffDays > 0) {
-      return `Expires in ${diffDays} day${diffDays !== 1 ? "s" : ""}`;
-    } else if (diffHours > 0) {
-      return `Expires in ${diffHours} hour${diffHours !== 1 ? "s" : ""}`;
-    } else if (diffMinutes > 0) {
-      return `Expires in ${diffMinutes} minute${diffMinutes !== 1 ? "s" : ""}`;
-    } else {
-      return "Expires soon";
+    const years = Math.floor(totalDays / 365);
+    const remainingDaysAfterYears = totalDays % 365;
+    const months = Math.floor(remainingDaysAfterYears / 30);
+    const days = remainingDaysAfterYears % 30;
+    const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+    // Format: 4y:3M:20D, 3M:20D, 1D:12H, 1H:20min, 20min
+    const parts: string[] = [];
+
+    // If >= 30 days (approximately 1 month), show years, months, days (no hours/minutes)
+    if (totalDays >= 30) {
+      if (years > 0) {
+        parts.push(`${years}y`);
+      }
+      if (months > 0) {
+        parts.push(`${months}M`);
+      }
+      if (days > 0) {
+        parts.push(`${days}D`);
+      }
     }
+    // If >= 1 day but < 30 days, show days and hours (1D:12H)
+    else if (totalDays >= 1) {
+      parts.push(`${totalDays}D`);
+      if (hours > 0) {
+        parts.push(`${hours}H`);
+      }
+    }
+    // If >= 1 hour but < 1 day, show hours and minutes (1H:20min)
+    else if (totalHours >= 1) {
+      parts.push(`${totalHours}H`);
+      if (minutes > 0) {
+        parts.push(`${minutes}min`);
+      }
+    }
+    // If < 1 hour, show only minutes (20min)
+    else if (totalMinutes > 0) {
+      parts.push(`${totalMinutes}min`);
+    }
+
+    // If no parts, it's expiring very soon
+    if (parts.length === 0) {
+      return { text: "Expires soon", isExpired: false };
+    }
+
+    return { text: parts.join(":"), isExpired: false };
   } catch (error) {
-    return "";
+    return { text: "", isExpired: false };
   }
 }
 
@@ -66,18 +101,59 @@ function LinkListItem({
   onToggleStats,
   onDelete,
 }: LinkListItemProps) {
-  const expirationText = useMemo(
-    () => formatExpirationTime(link.expires_at),
-    [link.expires_at]
-  );
+  const [expirationText, setExpirationText] = useState("");
+  const [isExpired, setIsExpired] = useState(false);
 
-  const isExpired = useMemo(() => {
-    if (!link.expires_at) return false;
-    try {
-      return new Date(link.expires_at).getTime() < new Date().getTime();
-    } catch {
-      return false;
+  useEffect(() => {
+    if (!link.expires_at) {
+      setExpirationText("");
+      setIsExpired(false);
+      return;
     }
+
+    const updateCountdown = () => {
+      const result = formatExpirationTimeCompact(link.expires_at);
+      setExpirationText(result.text);
+      setIsExpired(result.isExpired);
+    };
+
+    // Update immediately
+    updateCountdown();
+
+    // Determine update interval based on time remaining
+    let intervalMs: number;
+    try {
+      const expirationDate = new Date(link.expires_at);
+      const now = new Date();
+      const diffMs = expirationDate.getTime() - now.getTime();
+      const totalHours = Math.floor(diffMs / (1000 * 60 * 60));
+      const totalMinutes = Math.floor(diffMs / (1000 * 60));
+
+      if (diffMs < 0) {
+        // Already expired, no need to update
+        return;
+      } else if (totalHours < 1) {
+        // Less than 1 hour: update every 1 minute for accurate reading
+        intervalMs = 60 * 1000; // 1 minute
+      } else if (totalHours < 24) {
+        // Less than 1 day: update every 5 minutes
+        intervalMs = 5 * 60 * 1000;
+      } else {
+        // More than 1 day: update every hour (or rely on re-renders from URL calls)
+        intervalMs = 60 * 60 * 1000;
+      }
+    } catch {
+      // If date parsing fails, don't set up interval
+      return;
+    }
+
+    // Set up interval for live updates
+    const intervalId = setInterval(updateCountdown, intervalMs);
+
+    // Cleanup on unmount or when expires_at changes
+    return () => {
+      clearInterval(intervalId);
+    };
   }, [link.expires_at]);
 
   return (
