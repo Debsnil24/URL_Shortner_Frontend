@@ -36,6 +36,7 @@ export default function ShortCodeRedirect({
   const hasCheckedRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const isRedirectingRef = useRef(false);
+  const timeoutIdRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (!code || hasCheckedRef.current) return;
@@ -48,26 +49,29 @@ export default function ShortCodeRedirect({
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
 
+      // Clear any existing timeout before setting a new one
+      if (timeoutIdRef.current) {
+        clearTimeout(timeoutIdRef.current);
+      }
+
       // Set up timeout
-      let timeoutId: NodeJS.Timeout | null = null;
+      timeoutIdRef.current = setTimeout(() => {
+        if (!abortController.signal.aborted) {
+          abortController.abort();
+        }
+      }, 5000); // 5 second timeout
 
       try {
         // Use HEAD request to check link status with timeout
-        timeoutId = setTimeout(() => {
-          if (!abortController.signal.aborted) {
-            abortController.abort();
-          }
-        }, 5000); // 5 second timeout
-
         const checkResponse = await fetch(`${baseUrl}/${encodeURIComponent(code)}`, {
           method: "HEAD",
           credentials: "include",
           signal: abortController.signal,
         });
 
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-          timeoutId = null;
+        if (timeoutIdRef.current) {
+          clearTimeout(timeoutIdRef.current);
+          timeoutIdRef.current = null;
         }
 
         // Check if we're already redirecting (component might unmount)
@@ -103,6 +107,12 @@ export default function ShortCodeRedirect({
           window.location.replace(target);
         }
       } catch (error) {
+        // Clear timeout on error
+        if (timeoutIdRef.current) {
+          clearTimeout(timeoutIdRef.current);
+          timeoutIdRef.current = null;
+        }
+
         // If check fails, try to redirect anyway (fallback)
         if (error instanceof Error && error.name === "AbortError") {
           // Request was aborted, don't redirect
@@ -126,8 +136,9 @@ export default function ShortCodeRedirect({
       if (abortControllerRef.current && !abortControllerRef.current.signal.aborted) {
         abortControllerRef.current.abort();
       }
-      if (timeoutId) {
-        clearTimeout(timeoutId);
+      if (timeoutIdRef.current) {
+        clearTimeout(timeoutIdRef.current);
+        timeoutIdRef.current = null;
       }
     };
   }, [baseUrl, code]);

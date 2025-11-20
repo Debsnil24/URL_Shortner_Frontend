@@ -23,7 +23,7 @@ import { Icon } from "@iconify/react/dist/iconify.js";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CreateLinkModal, { ExpirationData } from "./CreateLinkModal";
-import EditLinkModal from "./EditLinkModal";
+import EditLinkModal, { EditLinkData } from "./EditLinkModal";
 import LinkListItem from "./LinkListItem";
 import StatsCards from "./StatsCards";
 
@@ -353,26 +353,131 @@ export default function Dashboard() {
   }, []);
 
   const handleUpdateLink = useCallback(
-    async (expirationData: ExpirationData) => {
+    async (updateData: EditLinkData) => {
       if (!editingLink) return;
 
-      const error = validateUrl(editUrl);
-      setEditUrlError(error);
-      if (error) return;
+      // Validate URL only if it's being updated
+      if (updateData.url !== undefined) {
+        const error = validateUrl(updateData.url);
+        setEditUrlError(error);
+        if (error) return;
+      }
+
+      // Ensure at least one field is being updated
+      if (!updateData.url && !updateData.expirationData) {
+        setEditUrlError("Please update at least one field (URL or expiration)");
+        return;
+      }
 
       setUpdating(true);
-      // API call would go here - for now just close modal
-      // await apiService.updateShortUrl(editingLink.short_code, {
-      //   url: editUrl.trim(),
-      //   ...expirationData,
-      // });
-      setIsEditLinkModalOpen(false);
-      setEditingLink(null);
-      setEditUrl("");
-      setEditUrlError(null);
-      setUpdating(false);
+      try {
+        const payload: {
+          url?: string;
+          expiration_preset?:
+            | "default"
+            | "1hour"
+            | "12hours"
+            | "1day"
+            | "7days"
+            | "1month"
+            | "6months"
+            | "1year";
+          custom_expiration?: {
+            years: string;
+            months: string;
+            days: string;
+            hours: string;
+            minutes: string;
+          };
+        } = {};
+
+        if (updateData.url) {
+          payload.url = updateData.url;
+        }
+
+        if (updateData.expirationData) {
+          if (updateData.expirationData.expiration_preset) {
+            payload.expiration_preset =
+              updateData.expirationData.expiration_preset;
+          } else if (updateData.expirationData.custom_expiration) {
+            payload.custom_expiration =
+              updateData.expirationData.custom_expiration;
+          }
+        }
+
+        const response = await apiService.updateShortUrl(
+          editingLink.short_code,
+          payload
+        );
+
+        if (response.success && response.data) {
+          const updatedLink = response.data;
+          addToast({
+            title: "Link updated successfully",
+            description: `Short link ${updatedLink.short_code} has been updated`,
+            color: "success",
+          });
+
+          // Update the link in the list
+          setLinks((prev) =>
+            prev.map((link) =>
+              link.short_code === editingLink.short_code
+                ? { ...link, ...updatedLink }
+                : link
+            )
+          );
+
+          // Refresh stats if the link is currently expanded
+          if (expandedCode === editingLink.short_code) {
+            void loadStats(editingLink.short_code);
+          }
+
+          setIsEditLinkModalOpen(false);
+          setEditingLink(null);
+          setEditUrl("");
+          setEditUrlError(null);
+        } else {
+          const message = mapApiErrorMessage(
+            response.message,
+            response.error?.code
+          );
+
+          // Handle specific error cases
+          if (response.error?.code === "HTTP_410") {
+            // Expired link - show special message
+            setEditUrlError(
+              "This link has expired. Update the expiration date to reactivate it."
+            );
+            addToast({
+              title: "Cannot update expired link",
+              description:
+                "Update the expiration date to reactivate this link.",
+              color: "warning",
+            });
+          } else {
+            setEditUrlError(message);
+            addToast({
+              title: "Unable to update link",
+              description: message,
+              color: "danger",
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Failed to update link:", error);
+        const errorMessage =
+          error instanceof Error ? error.message : "Failed to update link";
+        setEditUrlError(errorMessage);
+        addToast({
+          title: "Unable to update link",
+          description: errorMessage,
+          color: "danger",
+        });
+      } finally {
+        setUpdating(false);
+      }
     },
-    [editingLink, editUrl]
+    [editingLink, expandedCode, loadStats]
   );
 
   return (

@@ -70,6 +70,12 @@ export interface CreateShortUrlRequest {
     custom_expiration?: CustomExpiration;
 }
 
+export interface UpdateShortUrlRequest {
+    url?: string;
+    expiration_preset?: "default" | "1hour" | "12hours" | "1day" | "7days" | "1month" | "6months" | "1year";
+    custom_expiration?: CustomExpiration;
+}
+
 export interface UrlStats {
     short_code: string;
     original_url: string;
@@ -337,6 +343,13 @@ class ApiService {
     async createShortUrl(payload: CreateShortUrlRequest): Promise<ApiResponse<ShortUrl>> {
         return this.request<ShortUrl>('/api/shorten', {
             method: 'POST',
+            body: JSON.stringify(payload),
+        });
+    }
+
+    async updateShortUrl(shortCode: string, payload: UpdateShortUrlRequest): Promise<ApiResponse<ShortUrl>> {
+        return this.request<ShortUrl>(`/api/urls/${encodeURIComponent(shortCode)}`, {
+            method: 'PATCH',
             body: JSON.stringify(payload),
         });
     }

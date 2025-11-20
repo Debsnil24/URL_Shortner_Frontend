@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Input } from "@heroui/react";
+import { Button, Checkbox, Input } from "@heroui/react";
 import { Icon } from "@iconify/react/dist/iconify.js";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import CustomModal from "../customModal";
@@ -131,6 +131,11 @@ function calculateExpirationFromDate(
   }
 }
 
+export interface EditLinkData {
+  url?: string;
+  expirationData?: ExpirationData;
+}
+
 interface EditLinkModalProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
@@ -139,7 +144,7 @@ interface EditLinkModalProps {
   error: string | null;
   isLoading: boolean;
   onUrlChange: (value: string) => void;
-  onSubmit: (expirationData: ExpirationData) => void;
+  onSubmit: (data: EditLinkData) => void;
 }
 
 export default function EditLinkModal({
@@ -156,23 +161,31 @@ export default function EditLinkModal({
     useState<ExpirationPreset>(DEFAULT_PRESET);
   const [customTime, setCustomTime] =
     useState<CustomTimeInputsType>(EMPTY_CUSTOM_TIME);
+  const [modifyExpiration, setModifyExpiration] = useState(false);
+  const [originalUrlRef, setOriginalUrlRef] = useState(originalUrl);
+  const [originalExpiresAtRef, setOriginalExpiresAtRef] = useState(expiresAt);
 
-  // Initialize form when modal opens or data changes
+  // Initialize form when modal opens
   useEffect(() => {
     if (isOpen) {
+      // Store original values when modal opens
+      setOriginalUrlRef(originalUrl);
+      setOriginalExpiresAtRef(expiresAt);
+      setModifyExpiration(false);
       const { preset, customTime: calculatedCustomTime } =
         calculateExpirationFromDate(expiresAt);
       setSelectedPreset(preset);
       setCustomTime(calculatedCustomTime);
     }
-  }, [isOpen, expiresAt]);
+  }, [isOpen]); // Only run when modal opens/closes
 
   const resetForm = useCallback(() => {
+    setModifyExpiration(false);
     const { preset, customTime: calculatedCustomTime } =
-      calculateExpirationFromDate(expiresAt);
+      calculateExpirationFromDate(originalExpiresAtRef);
     setSelectedPreset(preset);
     setCustomTime(calculatedCustomTime);
-  }, [expiresAt]);
+  }, [originalExpiresAtRef]);
 
   const handlePresetSelect = useCallback((preset: ExpirationPreset) => {
     setSelectedPreset(preset);
@@ -228,20 +241,36 @@ export default function EditLinkModal({
             className="w-full"
           />
 
-          <ExpirationPresetSelector
-            presets={EXPIRATION_PRESETS}
-            selectedPreset={selectedPreset}
-            onPresetSelect={(preset) =>
-              handlePresetSelect(preset as ExpirationPreset)
-            }
-          />
+          <Checkbox
+            isSelected={modifyExpiration}
+            onValueChange={setModifyExpiration}
+            classNames={{
+              label: "text-gray-300 text-sm",
+            }}
+          >
+            <span className="text-sm text-gray-300">
+              Modify expiration date
+            </span>
+          </Checkbox>
 
-          {isCustomSelected && (
-            <CustomTimeInputs
-              values={customTime}
-              fields={CUSTOM_TIME_FIELDS}
-              onChange={handleCustomTimeChange}
-            />
+          {modifyExpiration && (
+            <>
+              <ExpirationPresetSelector
+                presets={EXPIRATION_PRESETS}
+                selectedPreset={selectedPreset}
+                onPresetSelect={(preset) =>
+                  handlePresetSelect(preset as ExpirationPreset)
+                }
+              />
+
+              {isCustomSelected && (
+                <CustomTimeInputs
+                  values={customTime}
+                  fields={CUSTOM_TIME_FIELDS}
+                  onChange={handleCustomTimeChange}
+                />
+              )}
+            </>
           )}
 
           <Button
@@ -250,23 +279,35 @@ export default function EditLinkModal({
             isLoading={isLoading}
             isDisabled={isLoading}
             onPress={() => {
-              const expirationData: ExpirationData = {};
+              const updateData: EditLinkData = {};
 
-              if (selectedPreset === "custom") {
-                // Only send custom_expiration if at least one value is not "0"
-                const hasNonZeroValue = Object.values(customTime).some(
-                  (value) => value !== "0" && value !== ""
-                );
-                if (hasNonZeroValue) {
-                  expirationData.custom_expiration = customTime;
-                }
-                // If all values are "0", don't send custom_expiration (backend will default to 5 years)
-              } else if (selectedPreset !== "default") {
-                expirationData.expiration_preset = selectedPreset;
+              // Only include URL if it changed
+              if (originalUrl.trim() !== originalUrlRef.trim()) {
+                updateData.url = originalUrl.trim();
               }
-              // If "default" is selected, don't send expiration_preset (backend will default to 5 years)
 
-              onSubmit(expirationData);
+              // Only include expiration data if modification is enabled
+              if (modifyExpiration) {
+                const expirationData: ExpirationData = {};
+
+                if (selectedPreset === "custom") {
+                  // Only send custom_expiration if at least one value is not "0"
+                  const hasNonZeroValue = Object.values(customTime).some(
+                    (value) => value !== "0" && value !== ""
+                  );
+                  if (hasNonZeroValue) {
+                    expirationData.custom_expiration = customTime;
+                  }
+                  // If all values are "0", don't send custom_expiration (backend will default to 5 years)
+                } else if (selectedPreset !== "default") {
+                  expirationData.expiration_preset = selectedPreset;
+                }
+                // If "default" is selected, don't send expiration_preset (backend will default to 5 years)
+
+                updateData.expirationData = expirationData;
+              }
+
+              onSubmit(updateData);
             }}
             className="text-md font-semibold w-full"
             startContent={<Icon icon="mdi:pencil" className="w-4 h-4" />}
