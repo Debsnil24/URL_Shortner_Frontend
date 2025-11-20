@@ -1,5 +1,5 @@
-import { memo } from "react";
 import { Icon } from "@iconify/react/dist/iconify.js";
+import { memo } from "react";
 
 interface StatsCard {
   label: string;
@@ -14,11 +14,7 @@ interface StatsCardsProps {
   activeLinks: number;
 }
 
-function StatsCards({
-  totalLinks,
-  totalClicks,
-  activeLinks,
-}: StatsCardsProps) {
+function StatsCards({ totalLinks, totalClicks, activeLinks }: StatsCardsProps) {
   const cards: StatsCard[] = [
     {
       label: "Total Links",
@@ -29,7 +25,7 @@ function StatsCards({
     {
       label: "Total Clicks",
       value: totalClicks,
-      icon: "mdi:cursor-click",
+      icon: "mdi:gesture-tap",
       color: "text-green-500",
     },
     {
@@ -41,15 +37,27 @@ function StatsCards({
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div className="grid grid-cols-3 gap-2 md:gap-6">
       {cards.map((card) => (
         <div
           key={card.label}
-          className="bg-gray-800/50 rounded-lg p-6 border border-gray-700"
+          className="bg-gray-800/50 rounded-lg p-2 md:p-6 border border-gray-700 hover:border-gray-600 transition-colors"
         >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-400 text-sm">{card.label}</p>
+          {/* Mobile Layout: Compact vertical stack */}
+          <div className="flex flex-col items-center gap-1.5 md:hidden">
+            <Icon icon={card.icon} className={`w-5 h-5 ${card.color}`} />
+            <p className="text-white text-base md:text-2xl font-bold leading-tight">
+              {card.value}
+            </p>
+            <p className="text-gray-400 text-[10px] md:text-sm font-medium text-center leading-tight">
+              {card.label}
+            </p>
+          </div>
+
+          {/* Desktop Layout: Horizontal with icon on right */}
+          <div className="hidden md:flex items-center justify-between">
+            <div className="flex flex-col gap-1">
+              <p className="text-gray-400 text-sm font-medium">{card.label}</p>
               <p className="text-2xl font-bold text-white">{card.value}</p>
             </div>
             <Icon icon={card.icon} className={`w-8 h-8 ${card.color}`} />
@@ -61,4 +69,3 @@ function StatsCards({
 }
 
 export default memo(StatsCards);
-

@@ -51,7 +51,7 @@ export default function ExpirationPresetSelector({
       <label className="text-sm font-medium text-gray-300">
         Expiration Time
       </label>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         {presets.map((preset) => (
           <PresetButton
             key={preset.value}

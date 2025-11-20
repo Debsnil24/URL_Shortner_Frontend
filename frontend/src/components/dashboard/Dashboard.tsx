@@ -10,6 +10,7 @@ import {
   Accordion,
   AccordionItem,
   addToast,
+  Avatar,
   Button,
   Dropdown,
   DropdownItem,
@@ -22,6 +23,7 @@ import { Icon } from "@iconify/react/dist/iconify.js";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CreateLinkModal, { ExpirationData } from "./CreateLinkModal";
+import EditLinkModal from "./EditLinkModal";
 import LinkListItem from "./LinkListItem";
 import StatsCards from "./StatsCards";
 
@@ -44,6 +46,11 @@ export default function Dashboard() {
   const [expandedCode, setExpandedCode] = useState<string | null>(null);
   const [statsState, setStatsState] = useState<Record<string, StatsState>>({});
   const [isCreateLinkModalOpen, setIsCreateLinkModalOpen] = useState(false);
+  const [isEditLinkModalOpen, setIsEditLinkModalOpen] = useState(false);
+  const [editingLink, setEditingLink] = useState<ShortUrl | null>(null);
+  const [editUrl, setEditUrl] = useState("");
+  const [editUrlError, setEditUrlError] = useState<string | null>(null);
+  const [updating, setUpdating] = useState(false);
   const expandedCodeRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -323,6 +330,51 @@ export default function Dashboard() {
     }
   }, []);
 
+  const handleEditLink = useCallback((link: ShortUrl) => {
+    setEditingLink(link);
+    setEditUrl(link.original_url);
+    setEditUrlError(null);
+    setIsEditLinkModalOpen(true);
+  }, []);
+
+  const handleEditModalClose = useCallback((open: boolean) => {
+    setIsEditLinkModalOpen(open);
+    if (!open) {
+      setEditingLink(null);
+      setEditUrl("");
+      setEditUrlError(null);
+    }
+  }, []);
+
+  const handleEditUrlChange = useCallback((value: string) => {
+    setEditUrl(value);
+    const error = validateUrl(value);
+    setEditUrlError(error);
+  }, []);
+
+  const handleUpdateLink = useCallback(
+    async (expirationData: ExpirationData) => {
+      if (!editingLink) return;
+
+      const error = validateUrl(editUrl);
+      setEditUrlError(error);
+      if (error) return;
+
+      setUpdating(true);
+      // API call would go here - for now just close modal
+      // await apiService.updateShortUrl(editingLink.short_code, {
+      //   url: editUrl.trim(),
+      //   ...expirationData,
+      // });
+      setIsEditLinkModalOpen(false);
+      setEditingLink(null);
+      setEditUrl("");
+      setEditUrlError(null);
+      setUpdating(false);
+    },
+    [editingLink, editUrl]
+  );
+
   return (
     <div
       className="font-sans flex flex-col min-h-screen md:min-h-[calc(100vh-85px)]"
@@ -333,27 +385,49 @@ export default function Dashboard() {
           <Image
             src="/SNIPLY.svg"
             alt="Sniply Logo"
-            width={40}
-            height={40}
+            width={80}
+            height={80}
             className="invert-100"
           />
-          <h1 className="text-xl font-semibold text-white">Dashboard</h1>
         </div>
 
         <div className="flex items-center gap-4">
           <Dropdown className="backdrop-blur-md border border-white/10 shadow-xl bg-gray-500/20">
             <DropdownTrigger>
-              <User
-                name={user?.name}
-                description={user?.email}
-                avatarProps={{
-                  src: user?.avatar_url,
-                  name: userInitials,
-                  showFallback: true,
-                }}
-              />
+              <div>
+                <div className="md:hidden">
+                  <Avatar
+                    src={user?.avatar_url}
+                    name={userInitials}
+                    showFallback
+                    className="cursor-pointer"
+                  />
+                </div>
+                <div className="hidden md:block">
+                  <User
+                    name={user?.name}
+                    description={user?.email}
+                    avatarProps={{
+                      src: user?.avatar_url,
+                      name: userInitials,
+                      showFallback: true,
+                    }}
+                  />
+                </div>
+              </div>
             </DropdownTrigger>
             <DropdownMenu>
+              <DropdownItem
+                key="user-info"
+                textValue="user-info"
+                className="h-auto py-3 md:hidden"
+                isReadOnly
+              >
+                <div className="flex flex-col gap-1">
+                  <p className="text-white font-medium">{user?.name}</p>
+                  <p className="text-gray-400 text-sm">{user?.email}</p>
+                </div>
+              </DropdownItem>
               <DropdownItem
                 color="danger"
                 className="text-danger"
@@ -377,19 +451,33 @@ export default function Dashboard() {
           />
 
           <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+            <div className="flex flex-row items-center justify-between gap-4 mb-4">
               <h2 className="text-xl font-semibold text-white">Your Links</h2>
               <div className="flex gap-2">
                 {isAuthenticated && (
-                  <Button
-                    color="primary"
-                    startContent={<Icon icon="mdi:plus" className="w-4 h-4" />}
-                    onPress={() => setIsCreateLinkModalOpen(true)}
-                  >
-                    Create Link
-                  </Button>
+                  <>
+                    <Button
+                      className="hidden md:flex"
+                      color="primary"
+                      startContent={
+                        <Icon icon="mdi:plus" className="w-4 h-4" />
+                      }
+                      onPress={() => setIsCreateLinkModalOpen(true)}
+                    >
+                      Create Link
+                    </Button>
+                    <Button
+                      className="md:hidden"
+                      color="primary"
+                      isIconOnly
+                      onPress={() => setIsCreateLinkModalOpen(true)}
+                    >
+                      <Icon icon="mdi:plus" className="w-4 h-4" />
+                    </Button>
+                  </>
                 )}
                 <Button
+                  className="hidden md:flex"
                   variant="bordered"
                   color="primary"
                   startContent={<Icon icon="mdi:refresh" className="w-4 h-4" />}
@@ -397,6 +485,16 @@ export default function Dashboard() {
                   isDisabled={linksLoading}
                 >
                   Refresh
+                </Button>
+                <Button
+                  className="md:hidden"
+                  variant="bordered"
+                  color="primary"
+                  isIconOnly
+                  onPress={fetchLinks}
+                  isDisabled={linksLoading}
+                >
+                  <Icon icon="mdi:refresh" className="w-4 h-4" />
                 </Button>
               </div>
             </div>
@@ -436,6 +534,7 @@ export default function Dashboard() {
                         isDeleting={deletingCode === link.short_code}
                         onCopy={handleCopy}
                         onToggleStats={toggleStats}
+                        onEdit={handleEditLink}
                         onDelete={handleDeleteLink}
                       />
                     ))}
@@ -464,7 +563,7 @@ export default function Dashboard() {
                         </div>
                       }
                       classNames={{
-                        trigger: "px-4 py-3 hover:bg-gray-800/50",
+                        trigger: "px-4 py-3",
                         content: "px-0 py-0",
                       }}
                     >
@@ -478,6 +577,7 @@ export default function Dashboard() {
                             isDeleting={deletingCode === link.short_code}
                             onCopy={handleCopy}
                             onToggleStats={toggleStats}
+                            onEdit={handleEditLink}
                             onDelete={handleDeleteLink}
                           />
                         ))}
@@ -492,15 +592,29 @@ export default function Dashboard() {
       </div>
 
       {isAuthenticated && (
-        <CreateLinkModal
-          isOpen={isCreateLinkModalOpen}
-          onOpenChange={handleModalClose}
-          url={newUrl}
-          error={newUrlError}
-          isLoading={creating}
-          onUrlChange={handleUrlChange}
-          onSubmit={handleCreateLink}
-        />
+        <>
+          <CreateLinkModal
+            isOpen={isCreateLinkModalOpen}
+            onOpenChange={handleModalClose}
+            url={newUrl}
+            error={newUrlError}
+            isLoading={creating}
+            onUrlChange={handleUrlChange}
+            onSubmit={handleCreateLink}
+          />
+          {editingLink && (
+            <EditLinkModal
+              isOpen={isEditLinkModalOpen}
+              onOpenChange={handleEditModalClose}
+              originalUrl={editUrl}
+              expiresAt={editingLink.expires_at}
+              error={editUrlError}
+              isLoading={updating}
+              onUrlChange={handleEditUrlChange}
+              onSubmit={handleUpdateLink}
+            />
+          )}
+        </>
       )}
     </div>
   );

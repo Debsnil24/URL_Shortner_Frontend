@@ -30,7 +30,9 @@ function formatExpirationTimeCompact(expiresAt: string | null | undefined): {
     const remainingDaysAfterYears = totalDays % 365;
     const months = Math.floor(remainingDaysAfterYears / 30);
     const days = remainingDaysAfterYears % 30;
-    const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const hours = Math.floor(
+      (diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)
+    );
     const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
 
     // Format: 4y:3M:20D, 3M:20D, 1D:12H, 1H:20min, 20min
@@ -89,6 +91,7 @@ interface LinkListItemProps {
   isDeleting: boolean;
   onCopy: (code: string) => void;
   onToggleStats: (code: string) => void;
+  onEdit: (link: ShortUrl) => void;
   onDelete: (code: string) => void;
 }
 
@@ -99,6 +102,7 @@ function LinkListItem({
   isDeleting,
   onCopy,
   onToggleStats,
+  onEdit,
   onDelete,
 }: LinkListItemProps) {
   const [expirationText, setExpirationText] = useState("");
@@ -195,8 +199,7 @@ function LinkListItem({
             )}
           </div>
         </div>
-
-        <div className="flex gap-2">
+        <div className="hidden gap-2 md:flex">
           <Button
             size="sm"
             variant="bordered"
@@ -217,6 +220,15 @@ function LinkListItem({
           </Button>
           <Button
             size="sm"
+            color="warning"
+            variant="bordered"
+            onPress={() => onEdit(link)}
+            startContent={<Icon icon="mdi:pencil" className="w-4 h-4" />}
+          >
+            Edit
+          </Button>
+          <Button
+            size="sm"
             color="danger"
             variant="flat"
             isLoading={isDeleting}
@@ -224,6 +236,45 @@ function LinkListItem({
             startContent={<Icon icon="mdi:trash-can" className="w-4 h-4" />}
           >
             Delete
+          </Button>
+        </div>
+        <div className="flex items-center justify-center gap-4 md:hidden">
+          <Button
+            size="sm"
+            variant="bordered"
+            isIconOnly
+            className="bg-white/5 text-gray-200 border-gray-600 hover:bg-white/10"
+            onPress={() => onCopy(link.short_code)}
+          >
+            <Icon icon="mdi:content-copy" className="w-4 h-4" />
+          </Button>
+          <Button
+            size="sm"
+            variant="bordered"
+            isIconOnly
+            color="primary"
+            onPress={() => onToggleStats(link.short_code)}
+          >
+            <Icon icon="mdi:chart-line" className="w-4 h-4" />
+          </Button>
+          <Button
+            size="sm"
+            color="warning"
+            isIconOnly
+            variant="bordered"
+            onPress={() => onEdit(link)}
+          >
+            <Icon icon="mdi:pencil" className="w-4 h-4" />
+          </Button>
+          <Button
+            size="sm"
+            color="danger"
+            isIconOnly
+            variant="flat"
+            isLoading={isDeleting}
+            onPress={() => onDelete(link.short_code)}
+          >
+            <Icon icon="mdi:trash-can" className="w-4 h-4" />
           </Button>
         </div>
       </div>

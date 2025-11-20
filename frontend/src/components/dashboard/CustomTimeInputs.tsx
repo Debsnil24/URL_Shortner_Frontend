@@ -201,7 +201,7 @@ export default function CustomTimeInputs({
         )}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-5 sm:grid-cols-5 gap-3">
         {fields.map((field) => {
           const options =
             fieldOptions[field.key as keyof typeof fieldOptions] ||
