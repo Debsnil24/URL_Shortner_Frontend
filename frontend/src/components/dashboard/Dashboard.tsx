@@ -19,7 +19,7 @@ import {
 import { Icon } from "@iconify/react/dist/iconify.js";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import CreateLinkModal from "./CreateLinkModal";
+import CreateLinkModal, { ExpirationData } from "./CreateLinkModal";
 import LinkListItem from "./LinkListItem";
 import StatsCards from "./StatsCards";
 
@@ -152,47 +152,51 @@ export default function Dashboard() {
   );
   const activeLinks = totalLinks;
 
-  const handleCreateLink = useCallback(async () => {
-    const error = validateUrl(newUrl);
-    setNewUrlError(error);
-    if (error) return;
+  const handleCreateLink = useCallback(
+    async (expirationData: ExpirationData) => {
+      const error = validateUrl(newUrl);
+      setNewUrlError(error);
+      if (error) return;
 
-    setCreating(true);
-    const response = await apiService.createShortUrl({
-      url: newUrl.trim(),
-    });
-
-    if (response.success && response.data) {
-      const createdLink = response.data;
-      addToast({
-        title: "Short link created",
-        description: `${
-          createdLink.shortened_url ?? resolveShortUrl(createdLink.short_code)
-        }`,
-        color: "success",
+      setCreating(true);
+      const response = await apiService.createShortUrl({
+        url: newUrl.trim(),
+        ...expirationData,
       });
-      setNewUrl("");
-      setNewUrlError(null);
-      setStatsState((prev) => ({
-        ...prev,
-        [createdLink.short_code]: { loading: false },
-      }));
-      fetchLinks();
-      setIsCreateLinkModalOpen(false);
-    } else {
-      const message = mapApiErrorMessage(
-        response.message,
-        response.error?.code
-      );
-      addToast({
-        title: "Unable to create link",
-        description: message,
-        color: "danger",
-      });
-    }
 
-    setCreating(false);
-  }, [newUrl, fetchLinks]);
+      if (response.success && response.data) {
+        const createdLink = response.data;
+        addToast({
+          title: "Short link created",
+          description: `${
+            createdLink.shortened_url ?? resolveShortUrl(createdLink.short_code)
+          }`,
+          color: "success",
+        });
+        setNewUrl("");
+        setNewUrlError(null);
+        setStatsState((prev) => ({
+          ...prev,
+          [createdLink.short_code]: { loading: false },
+        }));
+        fetchLinks();
+        setIsCreateLinkModalOpen(false);
+      } else {
+        const message = mapApiErrorMessage(
+          response.message,
+          response.error?.code
+        );
+        addToast({
+          title: "Unable to create link",
+          description: message,
+          color: "danger",
+        });
+      }
+
+      setCreating(false);
+    },
+    [newUrl, fetchLinks]
+  );
 
   const handleDeleteLink = useCallback(
     async (code: string) => {

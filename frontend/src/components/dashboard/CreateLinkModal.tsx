@@ -52,6 +52,25 @@ const EMPTY_CUSTOM_TIME: CustomTimeInputsType = {
   minutes: "0",
 };
 
+export interface ExpirationData {
+  expiration_preset?:
+    | "default"
+    | "1hour"
+    | "12hours"
+    | "1day"
+    | "7days"
+    | "1month"
+    | "6months"
+    | "1year";
+  custom_expiration?: {
+    years: string;
+    months: string;
+    days: string;
+    hours: string;
+    minutes: string;
+  };
+}
+
 interface CreateLinkModalProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
@@ -59,7 +78,7 @@ interface CreateLinkModalProps {
   error: string | null;
   isLoading: boolean;
   onUrlChange: (value: string) => void;
-  onSubmit: () => void;
+  onSubmit: (expirationData: ExpirationData) => void;
 }
 
 export default function CreateLinkModal({
@@ -156,7 +175,25 @@ export default function CreateLinkModal({
             radius="full"
             isLoading={isLoading}
             isDisabled={isLoading}
-            onPress={onSubmit}
+            onPress={() => {
+              const expirationData: ExpirationData = {};
+
+              if (selectedPreset === "custom") {
+                // Only send custom_expiration if at least one value is not "0"
+                const hasNonZeroValue = Object.values(customTime).some(
+                  (value) => value !== "0" && value !== ""
+                );
+                if (hasNonZeroValue) {
+                  expirationData.custom_expiration = customTime;
+                }
+                // If all values are "0", don't send custom_expiration (backend will default to 5 years)
+              } else if (selectedPreset !== "default") {
+                expirationData.expiration_preset = selectedPreset;
+              }
+              // If "default" is selected, don't send expiration_preset (backend will default to 5 years)
+
+              onSubmit(expirationData);
+            }}
             className="text-md font-semibold w-full"
             startContent={<Icon icon="mdi:plus" className="w-4 h-4" />}
           >

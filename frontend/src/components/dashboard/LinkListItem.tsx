@@ -1,9 +1,47 @@
-import { memo } from "react";
-import { Button } from "@heroui/react";
-import { Icon } from "@iconify/react/dist/iconify.js";
 import { ShortUrl, UrlStats } from "@/services/api";
 import { resolveShortUrl } from "@/utils/urlUtils";
+import { Button } from "@heroui/react";
+import { Icon } from "@iconify/react/dist/iconify.js";
+import { memo, useMemo } from "react";
 import LinkStatsPanel from "./LinkStatsPanel";
+
+function formatExpirationTime(expiresAt: string | null | undefined): string {
+  if (!expiresAt) return "";
+
+  try {
+    const expirationDate = new Date(expiresAt);
+    const now = new Date();
+    const diffMs = expirationDate.getTime() - now.getTime();
+
+    if (diffMs < 0) {
+      return "Expired";
+    }
+
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const diffHours = Math.floor(
+      (diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)
+    );
+    const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+    if (diffDays > 365) {
+      const years = Math.floor(diffDays / 365);
+      return `Expires in ${years} year${years !== 1 ? "s" : ""}`;
+    } else if (diffDays > 30) {
+      const months = Math.floor(diffDays / 30);
+      return `Expires in ${months} month${months !== 1 ? "s" : ""}`;
+    } else if (diffDays > 0) {
+      return `Expires in ${diffDays} day${diffDays !== 1 ? "s" : ""}`;
+    } else if (diffHours > 0) {
+      return `Expires in ${diffHours} hour${diffHours !== 1 ? "s" : ""}`;
+    } else if (diffMinutes > 0) {
+      return `Expires in ${diffMinutes} minute${diffMinutes !== 1 ? "s" : ""}`;
+    } else {
+      return "Expires soon";
+    }
+  } catch (error) {
+    return "";
+  }
+}
 
 interface LinkListItemProps {
   link: ShortUrl;
@@ -28,6 +66,20 @@ function LinkListItem({
   onToggleStats,
   onDelete,
 }: LinkListItemProps) {
+  const expirationText = useMemo(
+    () => formatExpirationTime(link.expires_at),
+    [link.expires_at]
+  );
+
+  const isExpired = useMemo(() => {
+    if (!link.expires_at) return false;
+    try {
+      return new Date(link.expires_at).getTime() < new Date().getTime();
+    } catch {
+      return false;
+    }
+  }, [link.expires_at]);
+
   return (
     <div className="py-4">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -50,12 +102,21 @@ function LinkListItem({
           </p>
           <div className="flex flex-wrap items-center gap-2 text-xs text-gray-400 mt-2">
             <span className="flex items-center gap-1">
-              <Icon
-                icon="mdi:cursor-default-click"
-                className="w-3.5 h-3.5"
-              />
+              <Icon icon="mdi:cursor-default-click" className="w-3.5 h-3.5" />
               {link.click_count} clicks
             </span>
+            {expirationText && (
+              <span
+                className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                  isExpired
+                    ? "bg-red-500/20 text-red-400 border border-red-500/30"
+                    : "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                }`}
+              >
+                <Icon icon="mdi:clock-outline" className="w-3.5 h-3.5" />
+                {expirationText}
+              </span>
+            )}
           </div>
         </div>
 
@@ -105,4 +166,3 @@ function LinkListItem({
 }
 
 export default memo(LinkListItem);
-

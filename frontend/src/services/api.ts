@@ -56,8 +56,18 @@ export interface ShortUrl {
     unique_visitors?: number;
 }
 
+export interface CustomExpiration {
+    years: string;
+    months: string;
+    days: string;
+    hours: string;
+    minutes: string;
+}
+
 export interface CreateShortUrlRequest {
     url: string;
+    expiration_preset?: "default" | "1hour" | "12hours" | "1day" | "7days" | "1month" | "6months" | "1year";
+    custom_expiration?: CustomExpiration;
 }
 
 export interface UrlStats {
