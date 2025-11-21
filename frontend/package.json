@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@heroui/react": "^2.8.2",
-    "framer-motion": "^12.23.12",
+    "html-to-image": "^1.11.13",
     "next": "16.0.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
