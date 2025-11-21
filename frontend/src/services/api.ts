@@ -389,9 +389,22 @@ class ApiService {
         );
     }
 
-    getQRCodeUrl(shortCode: string, download: boolean = false): string {
+    getQRCodeUrl(shortCode: string, download: boolean = false, regenerate: boolean = false, size?: number): string {
         const url = `${this.baseURL}/api/urls/${encodeURIComponent(shortCode)}/qr`;
-        return download ? `${url}?download=true` : url;
+        const params = new URLSearchParams();
+
+        if (regenerate) {
+            params.append('regenerate', 'true');
+        }
+        if (download) {
+            params.append('download', 'true');
+        }
+        if (size) {
+            params.append('size', size.toString());
+        }
+
+        const queryString = params.toString();
+        return queryString ? `${url}?${queryString}` : url;
     }
 
     async logout(): Promise<ApiResponse<null>> {

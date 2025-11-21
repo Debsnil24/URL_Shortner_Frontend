@@ -3,7 +3,8 @@
 import { useQRCode } from "@/hooks/useQRCode";
 import { useQRCodeDownload } from "@/hooks/useQRCodeDownload";
 import { ShortUrl } from "@/services/api";
-import { Spinner } from "@heroui/react";
+import { Button, Spinner } from "@heroui/react";
+import { Icon } from "@iconify/react/dist/iconify.js";
 import { useRef, useState } from "react";
 import CustomModal from "../customModal";
 import QRCodeDisplay from "./QRCodeDisplay";
@@ -25,7 +26,10 @@ export default function QRCodeModal({
   const [tagline, setTagline] = useState("");
   const qrContainerRef = useRef<HTMLDivElement>(null);
 
-  const { qrCodeUrl, generating } = useQRCode(link, isOpen);
+  const { qrCodeUrl, generating, regenerating, regenerateQRCode } = useQRCode(
+    link,
+    isOpen
+  );
   const { downloading, downloadQRImage } = useQRCodeDownload(
     qrCodeUrl,
     link,
@@ -67,10 +71,26 @@ export default function QRCodeModal({
               onIncludeTaglineChange={setIncludeTagline}
               onTaglineChange={setTagline}
             />
-            <QRCodeDownloadButton
-              onDownload={downloadQRImage}
-              downloading={downloading}
-            />
+            <div className="flex justify-center gap-2">
+              <Button
+                color="secondary"
+                variant="bordered"
+                onPress={() => regenerateQRCode(512)}
+                isLoading={regenerating}
+                isDisabled={regenerating}
+                startContent={
+                  !regenerating && (
+                    <Icon icon="mdi:refresh" className="w-4 h-4" />
+                  )
+                }
+              >
+                Regenerate QR
+              </Button>
+              <QRCodeDownloadButton
+                onDownload={downloadQRImage}
+                downloading={downloading}
+              />
+            </div>
           </>
         )}
       </div>

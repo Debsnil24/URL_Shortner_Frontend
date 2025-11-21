@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 export const useQRCode = (link: ShortUrl, isOpen: boolean) => {
     const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
     const [generating, setGenerating] = useState(false);
+    const [regenerating, setRegenerating] = useState(false);
 
     const loadQRCode = useCallback(async () => {
         if (!link.qr_code_available) {
@@ -26,12 +27,26 @@ export const useQRCode = (link: ShortUrl, isOpen: boolean) => {
         }
     }, [link]);
 
+    const regenerateQRCode = useCallback(async (size: number = 512) => {
+        setRegenerating(true);
+        try {
+            // Use regenerate=true query parameter to force regeneration
+            // Cache-bust is already included in getQRCodeUrl
+            const regeneratedUrl = apiService.getQRCodeUrl(link.short_code, false, true, size);
+            setQrCodeUrl(regeneratedUrl);
+        } catch (error) {
+            console.error("Failed to regenerate QR code:", error);
+        } finally {
+            setRegenerating(false);
+        }
+    }, [link.short_code]);
+
     useEffect(() => {
         if (isOpen && link) {
             loadQRCode();
         }
     }, [isOpen, link, loadQRCode]);
 
-    return { qrCodeUrl, generating };
+    return { qrCodeUrl, generating, regenerating, regenerateQRCode };
 };
 

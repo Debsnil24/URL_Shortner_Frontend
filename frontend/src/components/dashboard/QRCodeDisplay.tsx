@@ -1,6 +1,6 @@
 import { resolveShortUrl } from "@/utils/urlUtils";
 import Image from "next/image";
-import { RefObject } from "react";
+import { RefObject, useMemo } from "react";
 
 interface QRCodeDisplayProps {
   qrCodeUrl: string;
@@ -24,6 +24,14 @@ export default function QRCodeDisplay({
   showTagline,
   containerRef,
 }: QRCodeDisplayProps) {
+  // Add cache-bust to ensure fresh request (not from disk cache)
+  // Generate fresh URL each time qrCodeUrl changes
+  const freshQrCodeUrl = useMemo(() => {
+    if (!qrCodeUrl) return qrCodeUrl;
+    const separator = qrCodeUrl.includes("?") ? "&" : "?";
+    return `${qrCodeUrl}${separator}_t=${Date.now()}`;
+  }, [qrCodeUrl]);
+
   return (
     <div
       ref={containerRef}
@@ -46,7 +54,12 @@ export default function QRCodeDisplay({
         className="bg-white p-4 rounded-lg"
         style={{ backgroundColor: COLORS.white }}
       >
-        <img src={qrCodeUrl} alt="QR Code" className="w-64 h-64" />
+        <img
+          src={freshQrCodeUrl}
+          alt="QR Code"
+          className="w-64 h-64"
+          key={freshQrCodeUrl}
+        />
       </div>
       {showTagline && (
         <div className="flex flex-col items-center justify-center mt-4">
