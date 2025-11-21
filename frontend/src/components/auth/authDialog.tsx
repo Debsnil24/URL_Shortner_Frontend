@@ -1,16 +1,13 @@
 "use client";
 
-import { useAuth } from "@/components/auth/AuthProvider";
 import { useStore } from "@/store/useStore";
-import { Button } from "@heroui/react";
-import { Icon } from "@iconify/react/dist/iconify.js";
 import CustomModal from "../customModal";
 import Login from "./login";
 import Signup from "./signup";
+import OAuthButtons from "./OAuthButtons";
 
 export default function AuthDialog() {
   const { isAuthDialogOpen, setAuthDialogOpen, isLogin } = useStore();
-  const { handleGoogleAuth } = useAuth();
 
   return (
     <CustomModal
@@ -27,27 +24,7 @@ export default function AuthDialog() {
           <div className="w-1/2 h-px bg-gray-700"></div>
         </div>
 
-        <div className="flex flex-row gap-2 w-full justify-between items-center mb-3">
-          <Button
-            variant="solid"
-            radius="full"
-            onPress={handleGoogleAuth}
-            startContent={
-              <Icon icon="devicon:google" className="w-4 h-4 text-gray-700" />
-            }
-          >
-            <p className="mt-0.5 text-xs md:text-sm">Continue with Google</p>
-          </Button>
-          <Button
-            variant="solid"
-            radius="full"
-            startContent={
-              <Icon icon="devicon:apple" className="w-4 h-4 text-gray-700" />
-            }
-          >
-            <p className="mt-0.5 text-xs md:text-sm">Continue with Apple</p>
-          </Button>
-        </div>
+        <OAuthButtons />
       </div>
     </CustomModal>
   );

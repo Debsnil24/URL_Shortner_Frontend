@@ -1,9 +1,9 @@
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useStore } from "@/store/useStore";
 import { authToasts } from "@/utils/toastUtils";
-import { Button, Input } from "@heroui/react";
-import { Icon } from "@iconify/react/dist/iconify.js";
+import { Button } from "@heroui/react";
 import { useEffect, useState } from "react";
+import FormField from "../common/FormField";
 
 export default function Signup() {
   const { setAuthDialogOpen, setIsLogin } = useStore();
@@ -108,100 +108,57 @@ export default function Signup() {
         <p className="text-sm text-gray-400">Create an account to continue</p>
       </div>
       <div className="flex flex-row gap-2">
-        <Input
+        <FormField
           isClearable
           type="text"
           placeholder="Enter your first name"
           value={formData.firstName}
           onValueChange={(value) => handleInputChange("firstName", value)}
-          startContent={
-            <Icon icon="mdi:people" className="w-5 h-5 text-gray-700" />
-          }
-          label={<p className="text-white ml-1">First Name</p>}
-          labelPlacement="outside"
-          className="text-white"
-          classNames={{
-            clearButton: "text-black",
-            input: ["placeholder:text-xs", "text-black"],
-          }}
+          label="First Name"
+          icon="mdi:people"
         />
-        <Input
+        <FormField
           isClearable
           type="text"
           placeholder="Enter your last name"
           value={formData.lastName}
           onValueChange={(value) => handleInputChange("lastName", value)}
-          startContent={
-            <Icon icon="mdi:people-outline" className="w-5 h-5 text-gray-700" />
-          }
-          label={<p className="text-white ml-1">Last Name</p>}
-          labelPlacement="outside"
-          className="text-white"
-          classNames={{
-            clearButton: "text-black",
-            input: ["placeholder:text-xs", "text-black"],
-          }}
+          label="Last Name"
+          icon="mdi:people-outline"
         />
       </div>
-      <Input
+      <FormField
         isClearable
         type="email"
         placeholder="Enter your email"
         value={formData.email}
         onValueChange={(value) => handleInputChange("email", value)}
-        startContent={
-          <Icon icon="mdi:email" className="w-5 h-5 text-gray-700" />
-        }
-        label={<p className="text-white ml-1">Email</p>}
-        labelPlacement="outside"
-        className="text-white"
-        classNames={{
-          clearButton: "text-black",
-          input: ["placeholder:text-xs", "text-black"],
-        }}
+        label="Email"
+        icon="mdi:email"
       />
       <div className="flex flex-row gap-2">
-        <Input
+        <FormField
           isClearable
           type="password"
           placeholder="Enter your password"
           value={formData.password}
           onValueChange={(value) => handleInputChange("password", value)}
-          startContent={
-            <Icon icon="mdi:lock" className="w-5 h-5 text-gray-700" />
-          }
-          label={<p className="text-white ml-1">Password</p>}
-          labelPlacement="outside"
-          className="text-white"
-          classNames={{
-            clearButton: "text-black",
-            input: ["placeholder:text-xs", "text-black"],
-          }}
+          label="Password"
+          icon="mdi:lock"
         />
-        <Input
+        <FormField
           isClearable
           type="password"
           placeholder="Confirm your password"
           value={formData.confirmPassword}
           onValueChange={(value) => handleInputChange("confirmPassword", value)}
-          isInvalid={
-            formData.confirmPassword.length > 0 && !confirmPasswordMatch
-          }
-          errorMessage={
+          label="Confirm Password"
+          icon="mdi:lock"
+          error={
             formData.confirmPassword.length > 0 && !confirmPasswordMatch
               ? "Passwords do not match"
-              : ""
+              : undefined
           }
-          startContent={
-            <Icon icon="mdi:lock" className="w-5 h-5 text-gray-700" />
-          }
-          label={<p className="text-white ml-1">Confirm Password</p>}
-          labelPlacement="outside"
-          className="text-white"
-          classNames={{
-            clearButton: "text-black",
-            input: ["placeholder:text-xs", "text-black"],
-          }}
         />
       </div>
 

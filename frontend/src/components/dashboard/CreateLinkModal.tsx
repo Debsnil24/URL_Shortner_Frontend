@@ -1,56 +1,16 @@
 "use client";
 
+import { useExpirationForm } from "@/hooks/useExpirationForm";
+import {
+  CUSTOM_TIME_FIELDS,
+  EXPIRATION_PRESETS,
+} from "@/utils/expirationConstants";
 import { Button, Input } from "@heroui/react";
 import { Icon } from "@iconify/react/dist/iconify.js";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback } from "react";
 import CustomModal from "../customModal";
-import CustomTimeInputs, {
-  CustomTimeField,
-  CustomTimeInputs as CustomTimeInputsType,
-} from "./CustomTimeInputs";
-import ExpirationPresetSelector, {
-  ExpirationPresetOption,
-} from "./ExpirationPresetSelector";
-
-type ExpirationPreset =
-  | "default"
-  | "1hour"
-  | "12hours"
-  | "1day"
-  | "7days"
-  | "1month"
-  | "6months"
-  | "1year"
-  | "custom";
-
-const EXPIRATION_PRESETS: ExpirationPresetOption[] = [
-  { value: "default", label: "5 Years", icon: "mdi:calendar-clock" },
-  { value: "1hour", label: "1 Hour", icon: "mdi:clock-outline" },
-  { value: "12hours", label: "12 Hours", icon: "mdi:clock-time-twelve" },
-  { value: "1day", label: "1 Day", icon: "mdi:calendar-today" },
-  { value: "7days", label: "7 Days", icon: "mdi:calendar-week" },
-  { value: "1month", label: "1 Month", icon: "mdi:calendar-month" },
-  { value: "6months", label: "6 Months", icon: "mdi:calendar-range" },
-  { value: "1year", label: "1 Year", icon: "mdi:calendar-star" },
-  { value: "custom", label: "Custom", icon: "mdi:calendar-edit" },
-];
-
-const CUSTOM_TIME_FIELDS: CustomTimeField[] = [
-  { key: "years", label: "Years", placeholder: "Years", min: 0, max: 4 },
-  { key: "months", label: "Months", placeholder: "Months", min: 0, max: 11 },
-  { key: "days", label: "Days", placeholder: "Days", min: 0, max: 30 },
-  { key: "hours", label: "Hours", placeholder: "Hours", min: 0, max: 23 },
-  { key: "minutes", label: "Minutes", placeholder: "Minutes", min: 0, max: 59 },
-];
-
-const DEFAULT_PRESET: ExpirationPreset = "default";
-const EMPTY_CUSTOM_TIME: CustomTimeInputsType = {
-  years: "0",
-  months: "0",
-  days: "0",
-  hours: "0",
-  minutes: "0",
-};
+import CustomTimeInputs from "./CustomTimeInputs";
+import ExpirationPresetSelector from "./ExpirationPresetSelector";
 
 export interface ExpirationData {
   expiration_preset?:
@@ -90,29 +50,15 @@ export default function CreateLinkModal({
   onUrlChange,
   onSubmit,
 }: CreateLinkModalProps) {
-  const [selectedPreset, setSelectedPreset] =
-    useState<ExpirationPreset>(DEFAULT_PRESET);
-  const [customTime, setCustomTime] =
-    useState<CustomTimeInputsType>(EMPTY_CUSTOM_TIME);
-
-  const resetForm = useCallback(() => {
-    setSelectedPreset(DEFAULT_PRESET);
-    setCustomTime(EMPTY_CUSTOM_TIME);
-  }, []);
-
-  const handlePresetSelect = useCallback((preset: ExpirationPreset) => {
-    setSelectedPreset(preset);
-    if (preset !== "custom") {
-      setCustomTime(EMPTY_CUSTOM_TIME);
-    }
-  }, []);
-
-  const handleCustomTimeChange = useCallback(
-    (key: keyof CustomTimeInputsType, value: string) => {
-      setCustomTime((prev) => ({ ...prev, [key]: value }));
-    },
-    []
-  );
+  const {
+    selectedPreset,
+    customTime,
+    isCustomSelected,
+    handlePresetSelect,
+    handleCustomTimeChange,
+    resetForm,
+    buildExpirationData,
+  } = useExpirationForm();
 
   const handleModalClose = useCallback(
     (open: boolean) => {
@@ -122,11 +68,6 @@ export default function CreateLinkModal({
       onOpenChange(open);
     },
     [onOpenChange, resetForm]
-  );
-
-  const isCustomSelected = useMemo(
-    () => selectedPreset === "custom",
-    [selectedPreset]
   );
 
   return (
@@ -157,9 +98,7 @@ export default function CreateLinkModal({
           <ExpirationPresetSelector
             presets={EXPIRATION_PRESETS}
             selectedPreset={selectedPreset}
-            onPresetSelect={(preset) =>
-              handlePresetSelect(preset as ExpirationPreset)
-            }
+            onPresetSelect={handlePresetSelect}
           />
 
           {isCustomSelected && (
@@ -176,23 +115,7 @@ export default function CreateLinkModal({
             isLoading={isLoading}
             isDisabled={isLoading}
             onPress={() => {
-              const expirationData: ExpirationData = {};
-
-              if (selectedPreset === "custom") {
-                // Only send custom_expiration if at least one value is not "0"
-                const hasNonZeroValue = Object.values(customTime).some(
-                  (value) => value !== "0" && value !== ""
-                );
-                if (hasNonZeroValue) {
-                  expirationData.custom_expiration = customTime;
-                }
-                // If all values are "0", don't send custom_expiration (backend will default to 5 years)
-              } else if (selectedPreset !== "default") {
-                expirationData.expiration_preset = selectedPreset;
-              }
-              // If "default" is selected, don't send expiration_preset (backend will default to 5 years)
-
-              onSubmit(expirationData);
+              onSubmit(buildExpirationData());
             }}
             className="text-md font-semibold w-full"
             startContent={<Icon icon="mdi:plus" className="w-4 h-4" />}

@@ -1,9 +1,9 @@
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useStore } from "@/store/useStore";
 import { authToasts } from "@/utils/toastUtils";
-import { Button, Input } from "@heroui/react";
-import { Icon } from "@iconify/react/dist/iconify.js";
+import { Button } from "@heroui/react";
 import { useEffect, useState } from "react";
+import FormField from "../common/FormField";
 
 export default function Login() {
   const { setAuthDialogOpen, setIsLogin } = useStore();
@@ -48,37 +48,23 @@ export default function Login() {
           Sign in to your account to continue
         </p>
       </div>
-      <Input
+      <FormField
         isClearable
         type="email"
         placeholder="Enter your email"
         value={formData.email}
         onValueChange={(value) => handleInputChange("email", value)}
-        startContent={
-          <Icon icon="mdi:email" className="w-5 h-5 text-gray-700" />
-        }
-        label={<p className="text-white ml-1">Email</p>}
-        labelPlacement="outside"
-        classNames={{
-          clearButton: "text-black",
-          input: ["placeholder:text-xs", "text-black"],
-        }}
+        label="Email"
+        icon="mdi:email"
       />
-      <Input
+      <FormField
         isClearable
         type="password"
         placeholder="Enter your password"
         value={formData.password}
         onValueChange={(value) => handleInputChange("password", value)}
-        startContent={
-          <Icon icon="mdi:lock" className="w-5 h-5 text-gray-700" />
-        }
-        label={<p className="text-white ml-1">Password</p>}
-        labelPlacement="outside"
-        classNames={{
-          clearButton: "text-black",
-          input: ["placeholder:text-xs", "text-black"],
-        }}
+        label="Password"
+        icon="mdi:lock"
       />
       <div className="flex gap-2 w-full justify-end items-center -mt-1.5 ">
         <Button
