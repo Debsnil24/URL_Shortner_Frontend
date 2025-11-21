@@ -2,6 +2,7 @@ import { resolveShortUrl } from "@/utils/urlUtils";
 import Image from "next/image";
 import { RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { apiService } from "@/services/api";
+import { useQRCodeToken } from "@/hooks/useQRCodeToken";
 
 interface QRCodeDisplayProps {
   qrCodeUrl: string;
@@ -28,6 +29,7 @@ export default function QRCodeDisplay({
   const [imageSrc, setImageSrc] = useState<string>("");
   const [imageError, setImageError] = useState(false);
   const blobUrlRef = useRef<string | null>(null);
+  const { getQRToken } = useQRCodeToken();
 
   // Add cache-bust to ensure fresh request
   const freshQrCodeUrl = useMemo(() => {
@@ -39,7 +41,7 @@ export default function QRCodeDisplay({
     return `${cleanUrl}${separator}_t=${Date.now()}`;
   }, [qrCodeUrl]);
 
-  // Fetch image with Authorization header for cross-origin requests
+  // Fetch image with QR token for cross-origin requests
   useEffect(() => {
     if (!freshQrCodeUrl) {
       setImageSrc("");
@@ -50,24 +52,73 @@ export default function QRCodeDisplay({
     let isMounted = true;
     const abortController = new AbortController();
 
-    apiService.fetchAuthenticatedImage(freshQrCodeUrl)
-      .then((blob) => {
+    // Fetch QR token and then fetch image
+    getQRToken(shortCode)
+      .then(async (qrToken) => {
         if (!isMounted) return;
-        const url = URL.createObjectURL(blob);
-        // Clean up previous blob URL
-        if (blobUrlRef.current) {
-          URL.revokeObjectURL(blobUrlRef.current);
+        
+        try {
+          // Use QR token for authenticated fetch
+          const blob = await apiService.fetchAuthenticatedImage(freshQrCodeUrl, qrToken || undefined);
+          
+          if (!isMounted) return;
+          const url = URL.createObjectURL(blob);
+          // Clean up previous blob URL
+          if (blobUrlRef.current) {
+            URL.revokeObjectURL(blobUrlRef.current);
+          }
+          blobUrlRef.current = url;
+          setImageSrc(url);
+          setImageError(false);
+        } catch (error) {
+          // If QR token fetch fails, try fallback without token (cookie auth)
+          if (!isMounted) return;
+          console.error("Failed to load QR code image with token:", error);
+          
+          // Try fallback: fetch without token (will use cookie)
+          try {
+            const blob = await apiService.fetchAuthenticatedImage(freshQrCodeUrl);
+            if (!isMounted) return;
+            const url = URL.createObjectURL(blob);
+            if (blobUrlRef.current) {
+              URL.revokeObjectURL(blobUrlRef.current);
+            }
+            blobUrlRef.current = url;
+            setImageSrc(url);
+            setImageError(false);
+          } catch (fallbackError) {
+            // If fallback also fails, use direct URL (will work if CORS is fixed on backend)
+            console.error("Fallback fetch also failed:", fallbackError);
+            // Note: Direct URL will only work if backend adds CORS headers
+            // For now, set error state but still try to display
+            setImageError(true);
+            setImageSrc(freshQrCodeUrl); // Last resort: direct URL (may fail due to CORS)
+          }
         }
-        blobUrlRef.current = url;
-        setImageSrc(url);
-        setImageError(false);
       })
       .catch((error) => {
         if (!isMounted || error.name === 'AbortError') return;
-        console.error("Failed to load QR code image:", error);
-        setImageError(true);
-        // Fallback to direct URL
-        setImageSrc(freshQrCodeUrl);
+        console.error("Failed to get QR token:", error);
+        
+        // Try to fetch without token (cookie auth)
+        apiService.fetchAuthenticatedImage(freshQrCodeUrl)
+          .then((blob) => {
+            if (!isMounted) return;
+            const url = URL.createObjectURL(blob);
+            if (blobUrlRef.current) {
+              URL.revokeObjectURL(blobUrlRef.current);
+            }
+            blobUrlRef.current = url;
+            setImageSrc(url);
+            setImageError(false);
+          })
+          .catch((fallbackError) => {
+            if (!isMounted) return;
+            console.error("Fallback fetch failed:", fallbackError);
+            setImageError(true);
+            // Last resort: direct URL
+            setImageSrc(freshQrCodeUrl);
+          });
       });
 
     return () => {
@@ -78,7 +129,7 @@ export default function QRCodeDisplay({
         blobUrlRef.current = null;
       }
     };
-  }, [freshQrCodeUrl]);
+  }, [freshQrCodeUrl, shortCode, getQRToken]);
 
   return (
     <div

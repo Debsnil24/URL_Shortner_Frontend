@@ -92,6 +92,11 @@ export interface UrlStats {
     status?: "active" | "paused";
 }
 
+export interface QRTokenResponse {
+    token: string;
+    expires_in: number; // in seconds
+}
+
 export interface SupportRequest {
     name: string;
     email: string;
@@ -116,20 +121,10 @@ class ApiService {
         return !!localStorage.getItem('sniply_user');
     }
 
-    private getAuthToken(): string | null {
-        if (typeof window === 'undefined') return null;
-
-        // Try to get token from localStorage
-        const token = localStorage.getItem('sniply_auth_token');
-        if (token) return token;
-
-        return null;
-    }
-
     private clearAuth(): void {
         if (typeof window === 'undefined') return;
         localStorage.removeItem('sniply_user');
-        localStorage.removeItem('sniply_auth_token');
+        // Token is now stored in httpOnly cookie, no need to clear from localStorage
     }
 
     /**
@@ -286,10 +281,7 @@ class ApiService {
 
         if (typeof window !== 'undefined') {
             localStorage.setItem('sniply_user', JSON.stringify(transformedUser));
-            // Store token for cross-origin requests
-            if (response.data.token) {
-                localStorage.setItem('sniply_auth_token', response.data.token);
-            }
+            // Token is now stored in httpOnly cookie by backend, no localStorage storage needed
         }
 
         return {
@@ -324,10 +316,7 @@ class ApiService {
 
         if (typeof window !== 'undefined') {
             localStorage.setItem('sniply_user', JSON.stringify(transformedUser));
-            // Store token for cross-origin requests
-            if (response.data.token) {
-                localStorage.setItem('sniply_auth_token', response.data.token);
-            }
+            // Token is now stored in httpOnly cookie by backend, no localStorage storage needed
         }
 
         return {
@@ -426,28 +415,83 @@ class ApiService {
         return queryString ? `${url}?${queryString}` : url;
     }
 
-    async fetchAuthenticatedImage(url: string): Promise<Blob> {
-        const token = this.getAuthToken();
+    /**
+     * Get a short-lived token for QR code image requests
+     * Token is scoped to the specific short code and expires in 5 minutes
+     * 
+     * @param shortCode - The short code for the QR code
+     * @returns Promise resolving to QR token response
+     */
+    async getQRCodeToken(shortCode: string): Promise<ApiResponse<QRTokenResponse>> {
+        return this.request<QRTokenResponse>(
+            `/api/urls/${encodeURIComponent(shortCode)}/qr-token`,
+            { method: 'GET' }
+        );
+    }
+
+    /**
+     * Fetch an image with optional QR token authentication
+     * Falls back to httpOnly cookie authentication if no token provided
+     * 
+     * @param url - The image URL to fetch (should be absolute)
+     * @param qrToken - Optional QR token for cross-origin requests
+     * @returns Promise resolving to image blob
+     */
+    async fetchAuthenticatedImage(url: string, qrToken?: string): Promise<Blob> {
+        // URL should already be absolute from getQRCodeUrl, but ensure it is
+        const absoluteUrl = url.startsWith('http') || url.startsWith('//')
+            ? url
+            : `${this.baseURL}${url.startsWith('/') ? url : `/${url}`}`;
+
         const headers: HeadersInit = {
             'Accept': 'image/*',
         };
 
-        if (token) {
-            headers['Authorization'] = `Bearer ${token}`;
+        // Use QR token if provided (for cross-origin requests)
+        if (qrToken) {
+            headers['Authorization'] = `Bearer ${qrToken}`;
         }
 
-        const response = await fetch(url, {
-            method: 'GET',
-            headers,
-            credentials: 'include', // Still include cookies as fallback
-            mode: 'cors',
-        });
+        try {
+            // Use the same fetch pattern as the request() method to ensure CORS is handled
+            const response = await fetch(absoluteUrl, {
+                method: 'GET',
+                headers,
+                credentials: 'include', // Always include cookies as fallback
+                mode: 'cors',
+            });
 
-        if (!response.ok) {
-            throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+            if (!response.ok) {
+                const errorMessage = response.status === 401
+                    ? 'Authentication failed. Please try again.'
+                    : response.status === 403
+                        ? 'Access denied. You may not have permission to access this resource.'
+                        : `Failed to fetch image: ${response.status} ${response.statusText}`;
+                throw new Error(errorMessage);
+            }
+
+            return response.blob();
+        } catch (error) {
+            // Handle network errors (CORS, connection refused, etc.)
+            if (error instanceof Error) {
+                // Check if it's a network/CORS error
+                if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError') || error.name === 'TypeError') {
+                    // Log for debugging (only in development)
+                    if (process.env.NODE_ENV === 'development') {
+                        console.error('QR Image fetch error:', {
+                            url: absoluteUrl,
+                            hasToken: !!qrToken,
+                            error: error.message,
+                        });
+                    }
+                    // Network/CORS error - could be connection issue or CORS misconfiguration
+                    throw new Error(`Network error: Unable to fetch QR code image. Please check your connection and try again.`);
+                }
+                throw error;
+            }
+            // Handle non-Error exceptions
+            throw new Error(`Network error while fetching image: ${String(error)}`);
         }
-
-        return response.blob();
     }
 
     async logout(): Promise<ApiResponse<null>> {
