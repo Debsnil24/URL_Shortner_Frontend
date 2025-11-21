@@ -43,6 +43,9 @@ export default function Dashboard() {
   const [newUrl, setNewUrl] = useState("");
   const [newUrlError, setNewUrlError] = useState<string | null>(null);
   const [deletingCode, setDeletingCode] = useState<string | null>(null);
+  const [updatingStatusCode, setUpdatingStatusCode] = useState<string | null>(
+    null
+  );
   const [expandedCode, setExpandedCode] = useState<string | null>(null);
   const [statsState, setStatsState] = useState<Record<string, StatsState>>({});
   const [isCreateLinkModalOpen, setIsCreateLinkModalOpen] = useState(false);
@@ -270,6 +273,47 @@ export default function Dashboard() {
       setDeletingCode(null);
     },
     [expandedCode]
+  );
+
+  const handlePauseResume = useCallback(
+    async (code: string, status: "active" | "paused") => {
+      setUpdatingStatusCode(code);
+      try {
+        const response = await apiService.updateLinkStatus(code, status);
+        if (response.success && response.data) {
+          const updatedLink = response.data;
+          const action = status === "paused" ? "paused" : "resumed";
+          addToast({
+            title: `Link ${action} successfully`,
+            description: `Short link ${code} has been ${action}`,
+            color: "success",
+          });
+          // Update the link in the list
+          setLinks((prev) =>
+            prev.map((link) => (link.short_code === code ? updatedLink : link))
+          );
+        } else {
+          const message = mapApiErrorMessage(
+            response.message,
+            response.error?.code
+          );
+          addToast({
+            title: "Unable to update link status",
+            description: message,
+            color: "danger",
+          });
+        }
+      } catch (error) {
+        addToast({
+          title: "Unable to update link status",
+          description: "An error occurred while updating the link status",
+          color: "danger",
+        });
+      } finally {
+        setUpdatingStatusCode(null);
+      }
+    },
+    []
   );
 
   const toggleStats = useCallback(
@@ -637,9 +681,13 @@ export default function Dashboard() {
                         stats={statsState[link.short_code]}
                         isExpanded={expandedCode === link.short_code}
                         isDeleting={deletingCode === link.short_code}
+                        isUpdatingStatus={
+                          updatingStatusCode === link.short_code
+                        }
                         onCopy={handleCopy}
                         onToggleStats={toggleStats}
                         onEdit={handleEditLink}
+                        onPauseResume={handlePauseResume}
                         onDelete={handleDeleteLink}
                       />
                     ))}
@@ -680,9 +728,13 @@ export default function Dashboard() {
                             stats={statsState[link.short_code]}
                             isExpanded={expandedCode === link.short_code}
                             isDeleting={deletingCode === link.short_code}
+                            isUpdatingStatus={
+                              updatingStatusCode === link.short_code
+                            }
                             onCopy={handleCopy}
                             onToggleStats={toggleStats}
                             onEdit={handleEditLink}
+                            onPauseResume={handlePauseResume}
                             onDelete={handleDeleteLink}
                           />
                         ))}

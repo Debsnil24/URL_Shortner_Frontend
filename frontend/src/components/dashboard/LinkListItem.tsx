@@ -89,9 +89,11 @@ interface LinkListItemProps {
   };
   isExpanded: boolean;
   isDeleting: boolean;
+  isUpdatingStatus?: boolean;
   onCopy: (code: string) => void;
   onToggleStats: (code: string) => void;
   onEdit: (link: ShortUrl) => void;
+  onPauseResume: (code: string, status: "active" | "paused") => void;
   onDelete: (code: string) => void;
 }
 
@@ -100,13 +102,19 @@ function LinkListItem({
   stats,
   isExpanded,
   isDeleting,
+  isUpdatingStatus = false,
   onCopy,
   onToggleStats,
   onEdit,
+  onPauseResume,
   onDelete,
 }: LinkListItemProps) {
   const [expirationText, setExpirationText] = useState("");
   const [isExpired, setIsExpired] = useState(false);
+
+  // Get status from link, default to "active" if not provided
+  const linkStatus = link.status || "active";
+  const isPaused = linkStatus === "paused";
 
   useEffect(() => {
     if (!link.expires_at) {
@@ -197,6 +205,21 @@ function LinkListItem({
                 {expirationText}
               </span>
             )}
+            {!isExpired && (
+              <span
+                className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                  isPaused
+                    ? "bg-gray-500/20 text-gray-400 border border-gray-500/30"
+                    : "bg-green-500/20 text-green-400 border border-green-500/30"
+                }`}
+              >
+                <Icon
+                  icon={isPaused ? "mdi:pause-circle" : "mdi:play-circle"}
+                  className="w-3.5 h-3.5"
+                />
+                {isPaused ? "Paused" : "Active"}
+              </span>
+            )}
           </div>
         </div>
         <div className="hidden gap-2 md:flex">
@@ -220,6 +243,17 @@ function LinkListItem({
           </Button>
           <Button
             size="sm"
+            variant="bordered"
+            isIconOnly
+            className="bg-white/5 text-gray-200 border-gray-600 hover:bg-white/10"
+            onPress={() => {
+              // QR code functionality will be added here
+            }}
+          >
+            <Icon icon="mdi:qrcode" className="w-4 h-4" />
+          </Button>
+          <Button
+            size="sm"
             color="warning"
             variant="bordered"
             onPress={() => onEdit(link)}
@@ -227,6 +261,24 @@ function LinkListItem({
           >
             Edit
           </Button>
+          {!isExpired && (
+            <Button
+              size="sm"
+              color={isPaused ? "success" : "secondary"}
+              variant="bordered"
+              isIconOnly
+              isLoading={isUpdatingStatus}
+              isDisabled={isUpdatingStatus}
+              onPress={() =>
+                onPauseResume(link.short_code, isPaused ? "active" : "paused")
+              }
+            >
+              <Icon
+                icon={isPaused ? "mdi:play" : "mdi:pause"}
+                className="w-4 h-4"
+              />
+            </Button>
+          )}
           <Button
             size="sm"
             color="danger"
@@ -259,6 +311,17 @@ function LinkListItem({
           </Button>
           <Button
             size="sm"
+            variant="bordered"
+            isIconOnly
+            className="bg-white/5 text-gray-200 border-gray-600 hover:bg-white/10"
+            onPress={() => {
+              // QR code functionality will be added here
+            }}
+          >
+            <Icon icon="mdi:qrcode" className="w-4 h-4" />
+          </Button>
+          <Button
+            size="sm"
             color="warning"
             isIconOnly
             variant="bordered"
@@ -266,6 +329,24 @@ function LinkListItem({
           >
             <Icon icon="mdi:pencil" className="w-4 h-4" />
           </Button>
+          {!isExpired && (
+            <Button
+              size="sm"
+              color={isPaused ? "success" : "secondary"}
+              variant="bordered"
+              isIconOnly
+              isLoading={isUpdatingStatus}
+              isDisabled={isUpdatingStatus}
+              onPress={() =>
+                onPauseResume(link.short_code, isPaused ? "active" : "paused")
+              }
+            >
+              <Icon
+                icon={isPaused ? "mdi:play" : "mdi:pause"}
+                className="w-4 h-4"
+              />
+            </Button>
+          )}
           <Button
             size="sm"
             color="danger"

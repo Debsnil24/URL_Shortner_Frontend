@@ -54,6 +54,7 @@ export interface ShortUrl {
     last_visit_at?: string | null;
     last_visit_user_agent?: string | null;
     unique_visitors?: number;
+    status?: "active" | "paused";
 }
 
 export interface CustomExpiration {
@@ -83,6 +84,7 @@ export interface UrlStats {
     unique_visitors: number;
     last_visit_at: string | null;
     last_visit_user_agent: string | null;
+    status?: "active" | "paused";
 }
 
 export interface SupportRequest {
@@ -351,6 +353,13 @@ class ApiService {
         return this.request<ShortUrl>(`/api/urls/${encodeURIComponent(shortCode)}`, {
             method: 'PATCH',
             body: JSON.stringify(payload),
+        });
+    }
+
+    async updateLinkStatus(shortCode: string, status: "active" | "paused"): Promise<ApiResponse<ShortUrl>> {
+        return this.request<ShortUrl>(`/api/urls/${encodeURIComponent(shortCode)}/status`, {
+            method: 'PATCH',
+            body: JSON.stringify({ status }),
         });
     }
 

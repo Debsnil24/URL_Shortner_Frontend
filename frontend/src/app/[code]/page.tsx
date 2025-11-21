@@ -23,7 +23,7 @@ const getRedirectBase = () => {
 
 type ParamsPromise = Promise<{ code: string }>;
 
-type LinkStatus = "checking" | "active" | "expired" | "notfound" | "error";
+type LinkStatus = "checking" | "active" | "expired" | "paused" | "notfound" | "error";
 
 export default function ShortCodeRedirect({
   params,
@@ -80,8 +80,26 @@ export default function ShortCodeRedirect({
         }
 
         if (checkResponse.status === 410) {
-          // Link is expired or paused
-          setLinkStatus("expired");
+          // Link is expired or paused - make GET request to get error message
+          try {
+            const errorResponse = await fetch(`${baseUrl}/${encodeURIComponent(code)}`, {
+              method: "GET",
+              credentials: "include",
+              signal: abortController.signal,
+            });
+            if (errorResponse.status === 410) {
+              const errorData = await errorResponse.json();
+              if (errorData.error === "Link is paused") {
+                setLinkStatus("paused");
+              } else {
+                setLinkStatus("expired");
+              }
+            } else {
+              setLinkStatus("expired");
+            }
+          } catch {
+            setLinkStatus("expired");
+          }
           return;
         } else if (checkResponse.status === 404) {
           // Link not found
@@ -152,6 +170,24 @@ export default function ShortCodeRedirect({
           <h1 className="text-2xl font-semibold">Checking link…</h1>
           <p className="text-sm text-gray-300">
             Verifying status for <span className="font-mono">{code}</span>.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show paused page
+  if (linkStatus === "paused") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black text-white">
+        <div className="max-w-md text-center space-y-4 p-6">
+          <div className="text-6xl mb-4">⏸️</div>
+          <h1 className="text-2xl font-semibold">Link Paused</h1>
+          <p className="text-sm text-gray-300">
+            This short link is currently paused and unavailable.
+          </p>
+          <p className="text-xs text-gray-500">
+            Short code: <span className="font-mono">{code}</span>
           </p>
         </div>
       </div>
