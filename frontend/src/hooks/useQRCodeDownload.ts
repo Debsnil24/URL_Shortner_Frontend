@@ -9,6 +9,7 @@ import {
 import { addToast } from "@heroui/react";
 import * as htmlToImage from "html-to-image";
 import { RefObject, useCallback, useState } from "react";
+import { useQRCodeToken } from "./useQRCodeToken";
 
 const QR_COLORS = {
     gray950: "#030712",
@@ -23,6 +24,7 @@ export const useQRCodeDownload = (
     containerRef: RefObject<HTMLDivElement | null>
 ) => {
     const [downloading, setDownloading] = useState(false);
+    const { getQRToken } = useQRCodeToken();
 
     const getQRCodeDataUrl = useCallback(async (): Promise<string> => {
         if (!containerRef.current || !qrCodeUrl) {
@@ -47,16 +49,16 @@ export const useQRCodeDownload = (
             try {
                 return canvasImageToDataUrl(qrImgElement);
             } catch {
-                // Fallback to authenticated fetch
-                const token = typeof window !== 'undefined' ? localStorage.getItem('sniply_auth_token') : null;
-                return fetchAuthenticatedImageAsDataUrl(absoluteQrUrl, token || undefined);
+                // Fallback to authenticated fetch with QR token
+                const qrToken = await getQRToken(link.short_code);
+                return fetchAuthenticatedImageAsDataUrl(absoluteQrUrl, qrToken || undefined);
             }
         }
 
-        // Fetch with authentication
-        const token = typeof window !== 'undefined' ? localStorage.getItem('sniply_auth_token') : null;
-        return fetchAuthenticatedImageAsDataUrl(absoluteQrUrl, token || undefined);
-    }, [containerRef, qrCodeUrl, link.short_code]);
+        // Fetch with QR token
+        const qrToken = await getQRToken(link.short_code);
+        return fetchAuthenticatedImageAsDataUrl(absoluteQrUrl, qrToken || undefined);
+    }, [containerRef, qrCodeUrl, link.short_code, getQRToken]);
 
     const getLogoDataUrl = useCallback(async (): Promise<string> => {
         const logoUrl = `${window.location.origin}/SNIPLY.svg`;
