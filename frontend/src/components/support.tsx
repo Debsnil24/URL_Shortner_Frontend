@@ -1,18 +1,14 @@
 "use client";
 
-import { apiService } from "@/services/api";
 import { useStore } from "@/store/useStore";
-import { addToast, Button, Input, Textarea } from "@heroui/react";
+import { Button, Input, Textarea } from "@heroui/react";
 import { Icon } from "@iconify/react/dist/iconify.js";
 import { useEffect, useRef, useState } from "react";
 import CustomModal from "./customModal";
-
-// Field constraints
-const FIELD_LIMITS = {
-  name: { min: 1, max: 100 },
-  email: { min: 1, max: 255 },
-  message: { min: 1, max: 5000 },
-};
+import CharacterCounter from "./common/CharacterCounter";
+import { useSupportFormValidation } from "@/hooks/useSupportFormValidation";
+import { useSupportSubmission } from "@/hooks/useSupportSubmission";
+import { FIELD_LIMITS } from "@/utils/supportConstants";
 
 export default function Support() {
   const { isSupportOpen, setIsSupportOpen } = useStore();
@@ -21,271 +17,49 @@ export default function Support() {
     email: "",
     message: "",
   });
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [isFormValid, setIsFormValid] = useState(false);
-  const [isRateLimited, setIsRateLimited] = useState(false);
   const prevIsOpenRef = useRef(isSupportOpen);
+
+  const { errors, isFormValid, validateField, checkFieldValidity } =
+    useSupportFormValidation(formData);
+
+  const handleReset = () => {
+    setFormData({
+      name: "",
+      email: "",
+      message: "",
+    });
+  };
+
+  const { isSubmitting, isRateLimited, handleSubmit: submitForm } =
+    useSupportSubmission({
+      onSuccess: () => {
+        handleReset();
+        setIsSupportOpen(false);
+      },
+      checkFieldValidity,
+      validateField,
+    });
 
   // Reset form when modal is closed
   useEffect(() => {
     // If modal was open and is now closed, reset the form
     if (prevIsOpenRef.current && !isSupportOpen) {
-      setFormData({
-        name: "",
-        email: "",
-        message: "",
-      });
-      setErrors({});
-      setIsSubmitting(false);
-      setIsFormValid(false);
-      setIsRateLimited(false);
+      handleReset();
     }
     // Update ref for next render
     prevIsOpenRef.current = isSupportOpen;
   }, [isSupportOpen]);
 
-  // Validate form
-  useEffect(() => {
-    const nameLength = formData.name.trim().length;
-    const emailLength = formData.email.trim().length;
-    const messageLength = formData.message.trim().length;
-
-    const nameValid =
-      nameLength >= FIELD_LIMITS.name.min &&
-      nameLength <= FIELD_LIMITS.name.max;
-    const emailValid =
-      emailLength >= FIELD_LIMITS.email.min &&
-      emailLength <= FIELD_LIMITS.email.max &&
-      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim());
-    const messageValid =
-      messageLength >= FIELD_LIMITS.message.min &&
-      messageLength <= FIELD_LIMITS.message.max;
-
-    setIsFormValid(nameValid && emailValid && messageValid);
-
-    // Clear errors when fields are valid
-    setErrors((prev) => {
-      const newErrors = { ...prev };
-      if (nameValid) delete newErrors.name;
-      if (emailValid) delete newErrors.email;
-      if (messageValid) delete newErrors.message;
-      return newErrors;
-    });
-  }, [formData]);
-
-  // Synchronous validation function that returns validity
-  const checkFieldValidity = (field: string, value: string): boolean => {
-    const trimmedValue = value.trim();
-    const length = trimmedValue.length;
-
-    switch (field) {
-      case "name":
-        return (
-          length >= FIELD_LIMITS.name.min && length <= FIELD_LIMITS.name.max
-        );
-      case "email":
-        return (
-          length >= FIELD_LIMITS.email.min &&
-          length <= FIELD_LIMITS.email.max &&
-          /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedValue)
-        );
-      case "message":
-        return (
-          length >= FIELD_LIMITS.message.min &&
-          length <= FIELD_LIMITS.message.max
-        );
-      default:
-        return false;
-    }
-  };
-
-  const validateField = (field: string, value: string) => {
-    const trimmedValue = value.trim();
-    const length = trimmedValue.length;
-
-    switch (field) {
-      case "name":
-        if (length < FIELD_LIMITS.name.min) {
-          setErrors((prev) => ({
-            ...prev,
-            name: `Name must be at least ${FIELD_LIMITS.name.min} character${
-              FIELD_LIMITS.name.min > 1 ? "s" : ""
-            }`,
-          }));
-        } else if (length > FIELD_LIMITS.name.max) {
-          setErrors((prev) => ({
-            ...prev,
-            name: `Name must not exceed ${FIELD_LIMITS.name.max} characters`,
-          }));
-        } else {
-          setErrors((prev) => {
-            const newErrors = { ...prev };
-            delete newErrors.name;
-            return newErrors;
-          });
-        }
-        break;
-      case "email":
-        if (length < FIELD_LIMITS.email.min) {
-          setErrors((prev) => ({
-            ...prev,
-            email: "Email is required",
-          }));
-        } else if (length > FIELD_LIMITS.email.max) {
-          setErrors((prev) => ({
-            ...prev,
-            email: `Email must not exceed ${FIELD_LIMITS.email.max} characters`,
-          }));
-        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedValue)) {
-          setErrors((prev) => ({
-            ...prev,
-            email: "Please enter a valid email address",
-          }));
-        } else {
-          setErrors((prev) => {
-            const newErrors = { ...prev };
-            delete newErrors.email;
-            return newErrors;
-          });
-        }
-        break;
-      case "message":
-        if (length < FIELD_LIMITS.message.min) {
-          setErrors((prev) => ({
-            ...prev,
-            message: `Message must be at least ${
-              FIELD_LIMITS.message.min
-            } character${FIELD_LIMITS.message.min > 1 ? "s" : ""}`,
-          }));
-        } else if (length > FIELD_LIMITS.message.max) {
-          setErrors((prev) => ({
-            ...prev,
-            message: `Message must not exceed ${FIELD_LIMITS.message.max} characters`,
-          }));
-        } else {
-          setErrors((prev) => {
-            const newErrors = { ...prev };
-            delete newErrors.message;
-            return newErrors;
-          });
-        }
-        break;
-    }
-  };
-
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    if (errors[field]) {
+    if (errors[field as keyof typeof errors]) {
       validateField(field, value);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    // Validate all fields and update error messages
-    validateField("name", formData.name);
-    validateField("email", formData.email);
-    validateField("message", formData.message);
-
-    // Check validity synchronously to avoid stale state
-    const nameValid = checkFieldValidity("name", formData.name);
-    const emailValid = checkFieldValidity("email", formData.email);
-    const messageValid = checkFieldValidity("message", formData.message);
-    const formIsValid = nameValid && emailValid && messageValid;
-
-    if (!formIsValid) {
-      addToast({
-        title: "Validation Error",
-        description: "Please fill all fields correctly",
-        color: "danger",
-      });
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      const response = await apiService.submitSupportRequest({
-        name: formData.name.trim(),
-        email: formData.email.trim(),
-        message: formData.message.trim(),
-      });
-
-      if (response.success) {
-        // Success: Show success toast and close modal
-        addToast({
-          title: "Message Sent!",
-          description:
-            response.message ||
-            "Support request submitted successfully. We'll get back to you soon!",
-          color: "success",
-        });
-
-        // Reset form
-        setFormData({
-          name: "",
-          email: "",
-          message: "",
-        });
-        setErrors({});
-        setIsRateLimited(false);
-        // Close modal on success
-        setIsSupportOpen(false);
-      } else {
-        // Failure: Show error toast but keep modal open
-        // Handle rate limiting (429)
-        if (
-          response.error?.code === "RATE_LIMIT_EXCEEDED" ||
-          response.error?.code === "HTTP_429"
-        ) {
-          setIsRateLimited(true);
-          addToast({
-            title: "Rate Limit Exceeded",
-            description:
-              response.error?.message ||
-              response.message ||
-              "You've submitted too many requests. Please wait 15 minutes before submitting again.",
-            color: "danger",
-          });
-          // Disable form temporarily
-          setTimeout(() => {
-            setIsRateLimited(false);
-          }, 15 * 60 * 1000); // 15 minutes
-        } else if (response.error?.code === "VALIDATION_ERROR") {
-          // Handle validation errors (400)
-          addToast({
-            title: "Validation Error",
-            description: response.error.message || response.message,
-            color: "danger",
-          });
-        } else {
-          // Handle server errors (500 or other)
-          addToast({
-            title: "Failed to Send",
-            description:
-              response.error?.message ||
-              response.message ||
-              "Unable to process your request at this time. Please try again later.",
-            color: "danger",
-          });
-        }
-        // Modal stays open on failure - user can retry
-      }
-    } catch (error) {
-      // Network error: Show error toast but keep modal open
-      console.error("Support request error:", error);
-      addToast({
-        title: "Network Error",
-        description:
-          "Unable to connect to the server. Please check your internet connection and try again.",
-        color: "danger",
-      });
-      // Modal stays open on network error - user can retry
-    } finally {
-      setIsSubmitting(false);
-    }
+    await submitForm(formData);
   };
 
   return (
@@ -307,7 +81,6 @@ export default function Support() {
               placeholder="Enter your full name"
               value={formData.name}
               onValueChange={(value) => {
-                // Enforce max length
                 if (value.length <= FIELD_LIMITS.name.max) {
                   handleInputChange("name", value);
                 }
@@ -330,19 +103,10 @@ export default function Support() {
               }}
               isDisabled={isRateLimited}
             />
-            <div className="flex justify-end">
-              <span
-                className={`text-xs ml-1 ${
-                  formData.name.length > FIELD_LIMITS.name.max
-                    ? "text-red-500"
-                    : formData.name.length > FIELD_LIMITS.name.max * 0.9
-                    ? "text-yellow-500"
-                    : "text-gray-400"
-                }`}
-              >
-                {formData.name.length}/{FIELD_LIMITS.name.max}
-              </span>
-            </div>
+            <CharacterCounter
+              current={formData.name.length}
+              max={FIELD_LIMITS.name.max}
+            />
           </div>
 
           <div className="flex flex-col gap-1">
@@ -352,7 +116,6 @@ export default function Support() {
               placeholder="Enter your email"
               value={formData.email}
               onValueChange={(value) => {
-                // Enforce max length
                 if (value.length <= FIELD_LIMITS.email.max) {
                   handleInputChange("email", value);
                 }
@@ -375,19 +138,10 @@ export default function Support() {
               }}
               isDisabled={isRateLimited}
             />
-            <div className="flex justify-end">
-              <span
-                className={`text-xs ml-1 ${
-                  formData.email.length > FIELD_LIMITS.email.max
-                    ? "text-red-500"
-                    : formData.email.length > FIELD_LIMITS.email.max * 0.9
-                    ? "text-yellow-500"
-                    : "text-gray-400"
-                }`}
-              >
-                {formData.email.length}/{FIELD_LIMITS.email.max}
-              </span>
-            </div>
+            <CharacterCounter
+              current={formData.email.length}
+              max={FIELD_LIMITS.email.max}
+            />
           </div>
 
           <div className="flex flex-col gap-1">
@@ -395,7 +149,6 @@ export default function Support() {
               placeholder="Enter your message"
               value={formData.message}
               onValueChange={(value) => {
-                // Enforce max length
                 if (value.length <= FIELD_LIMITS.message.max) {
                   handleInputChange("message", value);
                 }
@@ -415,19 +168,10 @@ export default function Support() {
               }}
               isDisabled={isRateLimited}
             />
-            <div className="flex justify-end">
-              <span
-                className={`text-xs ml-1 ${
-                  formData.message.length > FIELD_LIMITS.message.max
-                    ? "text-red-500"
-                    : formData.message.length > FIELD_LIMITS.message.max * 0.9
-                    ? "text-yellow-500"
-                    : "text-gray-400"
-                }`}
-              >
-                {formData.message.length}/{FIELD_LIMITS.message.max}
-              </span>
-            </div>
+            <CharacterCounter
+              current={formData.message.length}
+              max={FIELD_LIMITS.message.max}
+            />
           </div>
 
           <Button
