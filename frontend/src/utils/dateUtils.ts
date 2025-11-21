@@ -2,6 +2,9 @@
  * Date and time utility functions
  */
 
+import { CustomTimeInputs } from "@/components/dashboard/CustomTimeInputs";
+import { EMPTY_CUSTOM_TIME, ExpirationPreset } from "./expirationConstants";
+
 export function formatExpirationTimeCompact(expiresAt: string | null | undefined): {
   text: string;
   isExpired: boolean;
@@ -74,6 +77,86 @@ export function formatExpirationTimeCompact(expiresAt: string | null | undefined
     return { text: parts.join(":"), isExpired: false };
   } catch (error) {
     return { text: "", isExpired: false };
+  }
+}
+
+/**
+ * Calculate expiration preset and custom time from expires_at date
+ */
+export function calculateExpirationFromDate(
+  expiresAt: string | null | undefined
+): {
+  preset: ExpirationPreset;
+  customTime: CustomTimeInputs;
+} {
+  if (!expiresAt) {
+    return { preset: "default", customTime: EMPTY_CUSTOM_TIME };
+  }
+
+  try {
+    const expirationDate = new Date(expiresAt);
+    const now = new Date();
+    const diffMs = expirationDate.getTime() - now.getTime();
+
+    if (diffMs < 0) {
+      // Already expired, return default
+      return { preset: "default", customTime: EMPTY_CUSTOM_TIME };
+    }
+
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+
+    // Check if it matches a preset
+    const fiveYearsMs = 5 * 365 * 24 * 60 * 60 * 1000;
+    const oneYearMs = 365 * 24 * 60 * 60 * 1000;
+    const sixMonthsMs = 180 * 24 * 60 * 60 * 1000;
+    const oneMonthMs = 30 * 24 * 60 * 60 * 1000;
+    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+    const oneDayMs = 24 * 60 * 60 * 1000;
+    const twelveHoursMs = 12 * 60 * 60 * 1000;
+    const oneHourMs = 60 * 60 * 1000;
+
+    // Check with some tolerance (within 1 hour)
+    const tolerance = 60 * 60 * 1000;
+    if (Math.abs(diffMs - fiveYearsMs) < tolerance) {
+      return { preset: "default", customTime: EMPTY_CUSTOM_TIME };
+    } else if (Math.abs(diffMs - oneYearMs) < tolerance) {
+      return { preset: "1year", customTime: EMPTY_CUSTOM_TIME };
+    } else if (Math.abs(diffMs - sixMonthsMs) < tolerance) {
+      return { preset: "6months", customTime: EMPTY_CUSTOM_TIME };
+    } else if (Math.abs(diffMs - oneMonthMs) < tolerance) {
+      return { preset: "1month", customTime: EMPTY_CUSTOM_TIME };
+    } else if (Math.abs(diffMs - sevenDaysMs) < tolerance) {
+      return { preset: "7days", customTime: EMPTY_CUSTOM_TIME };
+    } else if (Math.abs(diffMs - oneDayMs) < tolerance) {
+      return { preset: "1day", customTime: EMPTY_CUSTOM_TIME };
+    } else if (Math.abs(diffMs - twelveHoursMs) < tolerance) {
+      return { preset: "12hours", customTime: EMPTY_CUSTOM_TIME };
+    } else if (Math.abs(diffMs - oneHourMs) < tolerance) {
+      return { preset: "1hour", customTime: EMPTY_CUSTOM_TIME };
+    } else {
+      // Calculate custom time
+      const years = Math.floor(diffDays / 365);
+      const remainingDaysAfterYears = diffDays % 365;
+      const months = Math.floor(remainingDaysAfterYears / 30);
+      const days = remainingDaysAfterYears % 30;
+      const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+      return {
+        preset: "custom",
+        customTime: {
+          years: years > 4 ? "4" : years.toString(),
+          months: months.toString(),
+          days: days.toString(),
+          hours: hours.toString(),
+          minutes: minutes.toString(),
+        },
+      };
+    }
+  } catch {
+    return { preset: "default", customTime: EMPTY_CUSTOM_TIME };
   }
 }
 
