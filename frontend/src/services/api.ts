@@ -55,6 +55,11 @@ export interface ShortUrl {
     last_visit_user_agent?: string | null;
     unique_visitors?: number;
     status?: "active" | "paused";
+    qr_code_available?: boolean;
+    qr_code_size?: number;
+    qr_code_format?: string;
+    qr_code_generated_at?: string;
+    qr_code_url?: string;
 }
 
 export interface CustomExpiration {
@@ -373,6 +378,20 @@ class ApiService {
         return this.request<UrlStats>(
             `/api/urls/${encodeURIComponent(shortCode)}/stats`
         );
+    }
+
+    async generateQRCode(shortCode: string, size: number = 256): Promise<ApiResponse<{ size: number; format: string; generated_at: string }>> {
+        return this.request<{ size: number; format: string; generated_at: string }>(
+            `/api/urls/${encodeURIComponent(shortCode)}/qr?size=${size}`,
+            {
+                method: 'POST',
+            }
+        );
+    }
+
+    getQRCodeUrl(shortCode: string, download: boolean = false): string {
+        const url = `${this.baseURL}/api/urls/${encodeURIComponent(shortCode)}/qr`;
+        return download ? `${url}?download=true` : url;
     }
 
     async logout(): Promise<ApiResponse<null>> {

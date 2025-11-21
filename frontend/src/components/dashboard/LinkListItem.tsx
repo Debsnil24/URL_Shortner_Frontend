@@ -4,6 +4,7 @@ import { Button } from "@heroui/react";
 import { Icon } from "@iconify/react/dist/iconify.js";
 import { memo, useEffect, useState } from "react";
 import LinkStatsPanel from "./LinkStatsPanel";
+import QRCodeModal from "./QRCodeModal";
 
 function formatExpirationTimeCompact(expiresAt: string | null | undefined): {
   text: string;
@@ -111,6 +112,7 @@ function LinkListItem({
 }: LinkListItemProps) {
   const [expirationText, setExpirationText] = useState("");
   const [isExpired, setIsExpired] = useState(false);
+  const [isQRModalOpen, setIsQRModalOpen] = useState(false);
 
   // Get status from link, default to "active" if not provided
   const linkStatus = link.status || "active";
@@ -246,9 +248,7 @@ function LinkListItem({
             variant="bordered"
             isIconOnly
             className="bg-white/5 text-gray-200 border-gray-600 hover:bg-white/10"
-            onPress={() => {
-              // QR code functionality will be added here
-            }}
+            onPress={() => setIsQRModalOpen(true)}
           >
             <Icon icon="mdi:qrcode" className="w-4 h-4" />
           </Button>
@@ -314,9 +314,7 @@ function LinkListItem({
             variant="bordered"
             isIconOnly
             className="bg-white/5 text-gray-200 border-gray-600 hover:bg-white/10"
-            onPress={() => {
-              // QR code functionality will be added here
-            }}
+            onPress={() => setIsQRModalOpen(true)}
           >
             <Icon icon="mdi:qrcode" className="w-4 h-4" />
           </Button>
@@ -369,6 +367,12 @@ function LinkListItem({
           />
         </div>
       )}
+
+      <QRCodeModal
+        isOpen={isQRModalOpen}
+        onClose={() => setIsQRModalOpen(false)}
+        link={link}
+      />
     </div>
   );
 }
