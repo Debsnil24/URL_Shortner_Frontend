@@ -54,10 +54,27 @@ export interface ShortUrl {
     last_visit_at?: string | null;
     last_visit_user_agent?: string | null;
     unique_visitors?: number;
+    status?: "active" | "paused";
+}
+
+export interface CustomExpiration {
+    years: string;
+    months: string;
+    days: string;
+    hours: string;
+    minutes: string;
 }
 
 export interface CreateShortUrlRequest {
     url: string;
+    expiration_preset?: "default" | "1hour" | "12hours" | "1day" | "7days" | "1month" | "6months" | "1year";
+    custom_expiration?: CustomExpiration;
+}
+
+export interface UpdateShortUrlRequest {
+    url?: string;
+    expiration_preset?: "default" | "1hour" | "12hours" | "1day" | "7days" | "1month" | "6months" | "1year";
+    custom_expiration?: CustomExpiration;
 }
 
 export interface UrlStats {
@@ -67,6 +84,7 @@ export interface UrlStats {
     unique_visitors: number;
     last_visit_at: string | null;
     last_visit_user_agent: string | null;
+    status?: "active" | "paused";
 }
 
 export interface SupportRequest {
@@ -328,6 +346,20 @@ class ApiService {
         return this.request<ShortUrl>('/api/shorten', {
             method: 'POST',
             body: JSON.stringify(payload),
+        });
+    }
+
+    async updateShortUrl(shortCode: string, payload: UpdateShortUrlRequest): Promise<ApiResponse<ShortUrl>> {
+        return this.request<ShortUrl>(`/api/urls/${encodeURIComponent(shortCode)}`, {
+            method: 'PATCH',
+            body: JSON.stringify(payload),
+        });
+    }
+
+    async updateLinkStatus(shortCode: string, status: "active" | "paused"): Promise<ApiResponse<ShortUrl>> {
+        return this.request<ShortUrl>(`/api/urls/${encodeURIComponent(shortCode)}/status`, {
+            method: 'PATCH',
+            body: JSON.stringify({ status }),
         });
     }
 

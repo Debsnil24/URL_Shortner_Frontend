@@ -7,7 +7,10 @@ import { mapApiErrorMessage } from "@/utils/apiUtils";
 import { authToasts, toastBus } from "@/utils/toastUtils";
 import { resolveShortUrl, validateUrl } from "@/utils/urlUtils";
 import {
+  Accordion,
+  AccordionItem,
   addToast,
+  Avatar,
   Button,
   Dropdown,
   DropdownItem,
@@ -19,7 +22,8 @@ import {
 import { Icon } from "@iconify/react/dist/iconify.js";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import CreateLinkModal from "./CreateLinkModal";
+import CreateLinkModal, { ExpirationData } from "./CreateLinkModal";
+import EditLinkModal, { EditLinkData } from "./EditLinkModal";
 import LinkListItem from "./LinkListItem";
 import StatsCards from "./StatsCards";
 
@@ -39,9 +43,17 @@ export default function Dashboard() {
   const [newUrl, setNewUrl] = useState("");
   const [newUrlError, setNewUrlError] = useState<string | null>(null);
   const [deletingCode, setDeletingCode] = useState<string | null>(null);
+  const [updatingStatusCode, setUpdatingStatusCode] = useState<string | null>(
+    null
+  );
   const [expandedCode, setExpandedCode] = useState<string | null>(null);
   const [statsState, setStatsState] = useState<Record<string, StatsState>>({});
   const [isCreateLinkModalOpen, setIsCreateLinkModalOpen] = useState(false);
+  const [isEditLinkModalOpen, setIsEditLinkModalOpen] = useState(false);
+  const [editingLink, setEditingLink] = useState<ShortUrl | null>(null);
+  const [editUrl, setEditUrl] = useState("");
+  const [editUrlError, setEditUrlError] = useState<string | null>(null);
+  const [updating, setUpdating] = useState(false);
   const expandedCodeRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -150,49 +162,82 @@ export default function Dashboard() {
     () => links.reduce((acc, link) => acc + (link.click_count || 0), 0),
     [links]
   );
-  const activeLinks = totalLinks;
 
-  const handleCreateLink = useCallback(async () => {
-    const error = validateUrl(newUrl);
-    setNewUrlError(error);
-    if (error) return;
+  // Separate active and expired links
+  const { activeLinks, expiredLinks } = useMemo(() => {
+    const now = new Date();
+    const active: ShortUrl[] = [];
+    const expired: ShortUrl[] = [];
 
-    setCreating(true);
-    const response = await apiService.createShortUrl({
-      url: newUrl.trim(),
+    links.forEach((link) => {
+      if (!link.expires_at) {
+        // Links without expiration are considered active
+        active.push(link);
+      } else {
+        try {
+          const expirationDate = new Date(link.expires_at);
+          if (expirationDate.getTime() < now.getTime()) {
+            expired.push(link);
+          } else {
+            active.push(link);
+          }
+        } catch {
+          // If date parsing fails, treat as active
+          active.push(link);
+        }
+      }
     });
 
-    if (response.success && response.data) {
-      const createdLink = response.data;
-      addToast({
-        title: "Short link created",
-        description: `${
-          createdLink.shortened_url ?? resolveShortUrl(createdLink.short_code)
-        }`,
-        color: "success",
-      });
-      setNewUrl("");
-      setNewUrlError(null);
-      setStatsState((prev) => ({
-        ...prev,
-        [createdLink.short_code]: { loading: false },
-      }));
-      fetchLinks();
-      setIsCreateLinkModalOpen(false);
-    } else {
-      const message = mapApiErrorMessage(
-        response.message,
-        response.error?.code
-      );
-      addToast({
-        title: "Unable to create link",
-        description: message,
-        color: "danger",
-      });
-    }
+    return { activeLinks: active, expiredLinks: expired };
+  }, [links]);
 
-    setCreating(false);
-  }, [newUrl, fetchLinks]);
+  const activeLinksCount = activeLinks.length;
+
+  const handleCreateLink = useCallback(
+    async (expirationData: ExpirationData) => {
+      const error = validateUrl(newUrl);
+      setNewUrlError(error);
+      if (error) return;
+
+      setCreating(true);
+      const response = await apiService.createShortUrl({
+        url: newUrl.trim(),
+        ...expirationData,
+      });
+
+      if (response.success && response.data) {
+        const createdLink = response.data;
+        addToast({
+          title: "Short link created",
+          description: `${
+            createdLink.shortened_url ?? resolveShortUrl(createdLink.short_code)
+          }`,
+          color: "success",
+        });
+        setNewUrl("");
+        setNewUrlError(null);
+        setStatsState((prev) => ({
+          ...prev,
+          [createdLink.short_code]: { loading: false },
+        }));
+        fetchLinks();
+        setIsCreateLinkModalOpen(false);
+      } else {
+        const message = mapApiErrorMessage(
+          response.message,
+          response.error?.code
+        );
+        addToast({
+          title: "Unable to create link",
+          description: message,
+          color: "danger",
+        });
+      }
+
+      setCreating(false);
+    },
+    [newUrl, fetchLinks]
+  );
 
   const handleDeleteLink = useCallback(
     async (code: string) => {
@@ -228,6 +273,47 @@ export default function Dashboard() {
       setDeletingCode(null);
     },
     [expandedCode]
+  );
+
+  const handlePauseResume = useCallback(
+    async (code: string, status: "active" | "paused") => {
+      setUpdatingStatusCode(code);
+      try {
+        const response = await apiService.updateLinkStatus(code, status);
+        if (response.success && response.data) {
+          const updatedLink = response.data;
+          const action = status === "paused" ? "paused" : "resumed";
+          addToast({
+            title: `Link ${action} successfully`,
+            description: `Short link ${code} has been ${action}`,
+            color: "success",
+          });
+          // Update the link in the list
+          setLinks((prev) =>
+            prev.map((link) => (link.short_code === code ? updatedLink : link))
+          );
+        } else {
+          const message = mapApiErrorMessage(
+            response.message,
+            response.error?.code
+          );
+          addToast({
+            title: "Unable to update link status",
+            description: message,
+            color: "danger",
+          });
+        }
+      } catch (error) {
+        addToast({
+          title: "Unable to update link status",
+          description: "An error occurred while updating the link status",
+          color: "danger",
+        });
+      } finally {
+        setUpdatingStatusCode(null);
+      }
+    },
+    []
   );
 
   const toggleStats = useCallback(
@@ -288,6 +374,156 @@ export default function Dashboard() {
     }
   }, []);
 
+  const handleEditLink = useCallback((link: ShortUrl) => {
+    setEditingLink(link);
+    setEditUrl(link.original_url);
+    setEditUrlError(null);
+    setIsEditLinkModalOpen(true);
+  }, []);
+
+  const handleEditModalClose = useCallback((open: boolean) => {
+    setIsEditLinkModalOpen(open);
+    if (!open) {
+      setEditingLink(null);
+      setEditUrl("");
+      setEditUrlError(null);
+    }
+  }, []);
+
+  const handleEditUrlChange = useCallback((value: string) => {
+    setEditUrl(value);
+    const error = validateUrl(value);
+    setEditUrlError(error);
+  }, []);
+
+  const handleUpdateLink = useCallback(
+    async (updateData: EditLinkData) => {
+      if (!editingLink) return;
+
+      // Validate URL only if it's being updated
+      if (updateData.url !== undefined) {
+        const error = validateUrl(updateData.url);
+        setEditUrlError(error);
+        if (error) return;
+      }
+
+      // Ensure at least one field is being updated
+      if (!updateData.url && !updateData.expirationData) {
+        setEditUrlError("Please update at least one field (URL or expiration)");
+        return;
+      }
+
+      setUpdating(true);
+      try {
+        const payload: {
+          url?: string;
+          expiration_preset?:
+            | "default"
+            | "1hour"
+            | "12hours"
+            | "1day"
+            | "7days"
+            | "1month"
+            | "6months"
+            | "1year";
+          custom_expiration?: {
+            years: string;
+            months: string;
+            days: string;
+            hours: string;
+            minutes: string;
+          };
+        } = {};
+
+        if (updateData.url) {
+          payload.url = updateData.url;
+        }
+
+        if (updateData.expirationData) {
+          if (updateData.expirationData.expiration_preset) {
+            payload.expiration_preset =
+              updateData.expirationData.expiration_preset;
+          } else if (updateData.expirationData.custom_expiration) {
+            payload.custom_expiration =
+              updateData.expirationData.custom_expiration;
+          }
+        }
+
+        const response = await apiService.updateShortUrl(
+          editingLink.short_code,
+          payload
+        );
+
+        if (response.success && response.data) {
+          const updatedLink = response.data;
+          addToast({
+            title: "Link updated successfully",
+            description: `Short link ${updatedLink.short_code} has been updated`,
+            color: "success",
+          });
+
+          // Update the link in the list
+          setLinks((prev) =>
+            prev.map((link) =>
+              link.short_code === editingLink.short_code
+                ? { ...link, ...updatedLink }
+                : link
+            )
+          );
+
+          // Refresh stats if the link is currently expanded
+          if (expandedCode === editingLink.short_code) {
+            void loadStats(editingLink.short_code);
+          }
+
+          setIsEditLinkModalOpen(false);
+          setEditingLink(null);
+          setEditUrl("");
+          setEditUrlError(null);
+        } else {
+          const message = mapApiErrorMessage(
+            response.message,
+            response.error?.code
+          );
+
+          // Handle specific error cases
+          if (response.error?.code === "HTTP_410") {
+            // Expired link - show special message
+            setEditUrlError(
+              "This link has expired. Update the expiration date to reactivate it."
+            );
+            addToast({
+              title: "Cannot update expired link",
+              description:
+                "Update the expiration date to reactivate this link.",
+              color: "warning",
+            });
+          } else {
+            setEditUrlError(message);
+            addToast({
+              title: "Unable to update link",
+              description: message,
+              color: "danger",
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Failed to update link:", error);
+        const errorMessage =
+          error instanceof Error ? error.message : "Failed to update link";
+        setEditUrlError(errorMessage);
+        addToast({
+          title: "Unable to update link",
+          description: errorMessage,
+          color: "danger",
+        });
+      } finally {
+        setUpdating(false);
+      }
+    },
+    [editingLink, expandedCode, loadStats]
+  );
+
   return (
     <div
       className="font-sans flex flex-col min-h-screen md:min-h-[calc(100vh-85px)]"
@@ -298,27 +534,49 @@ export default function Dashboard() {
           <Image
             src="/SNIPLY.svg"
             alt="Sniply Logo"
-            width={40}
-            height={40}
+            width={80}
+            height={80}
             className="invert-100"
           />
-          <h1 className="text-xl font-semibold text-white">Dashboard</h1>
         </div>
 
         <div className="flex items-center gap-4">
           <Dropdown className="backdrop-blur-md border border-white/10 shadow-xl bg-gray-500/20">
             <DropdownTrigger>
-              <User
-                name={user?.name}
-                description={user?.email}
-                avatarProps={{
-                  src: user?.avatar_url,
-                  name: userInitials,
-                  showFallback: true,
-                }}
-              />
+              <div>
+                <div className="md:hidden">
+                  <Avatar
+                    src={user?.avatar_url}
+                    name={userInitials}
+                    showFallback
+                    className="cursor-pointer"
+                  />
+                </div>
+                <div className="hidden md:block">
+                  <User
+                    name={user?.name}
+                    description={user?.email}
+                    avatarProps={{
+                      src: user?.avatar_url,
+                      name: userInitials,
+                      showFallback: true,
+                    }}
+                  />
+                </div>
+              </div>
             </DropdownTrigger>
             <DropdownMenu>
+              <DropdownItem
+                key="user-info"
+                textValue="user-info"
+                className="h-auto py-3 md:hidden"
+                isReadOnly
+              >
+                <div className="flex flex-col gap-1">
+                  <p className="text-white font-medium">{user?.name}</p>
+                  <p className="text-gray-400 text-sm">{user?.email}</p>
+                </div>
+              </DropdownItem>
               <DropdownItem
                 color="danger"
                 className="text-danger"
@@ -338,23 +596,37 @@ export default function Dashboard() {
           <StatsCards
             totalLinks={totalLinks}
             totalClicks={totalClicks}
-            activeLinks={activeLinks}
+            activeLinks={activeLinksCount}
           />
 
           <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+            <div className="flex flex-row items-center justify-between gap-4 mb-4">
               <h2 className="text-xl font-semibold text-white">Your Links</h2>
               <div className="flex gap-2">
                 {isAuthenticated && (
-                  <Button
-                    color="primary"
-                    startContent={<Icon icon="mdi:plus" className="w-4 h-4" />}
-                    onPress={() => setIsCreateLinkModalOpen(true)}
-                  >
-                    Create Link
-                  </Button>
+                  <>
+                    <Button
+                      className="hidden md:flex"
+                      color="primary"
+                      startContent={
+                        <Icon icon="mdi:plus" className="w-4 h-4" />
+                      }
+                      onPress={() => setIsCreateLinkModalOpen(true)}
+                    >
+                      Create Link
+                    </Button>
+                    <Button
+                      className="md:hidden"
+                      color="primary"
+                      isIconOnly
+                      onPress={() => setIsCreateLinkModalOpen(true)}
+                    >
+                      <Icon icon="mdi:plus" className="w-4 h-4" />
+                    </Button>
+                  </>
                 )}
                 <Button
+                  className="hidden md:flex"
                   variant="bordered"
                   color="primary"
                   startContent={<Icon icon="mdi:refresh" className="w-4 h-4" />}
@@ -362,6 +634,16 @@ export default function Dashboard() {
                   isDisabled={linksLoading}
                 >
                   Refresh
+                </Button>
+                <Button
+                  className="md:hidden"
+                  variant="bordered"
+                  color="primary"
+                  isIconOnly
+                  onPress={fetchLinks}
+                  isDisabled={linksLoading}
+                >
+                  <Icon icon="mdi:refresh" className="w-4 h-4" />
                 </Button>
               </div>
             </div>
@@ -388,19 +670,78 @@ export default function Dashboard() {
                 </p>
               </div>
             ) : (
-              <div className="flex flex-col divide-y divide-gray-700">
-                {links.map((link) => (
-                  <LinkListItem
-                    key={link.id || link.short_code}
-                    link={link}
-                    stats={statsState[link.short_code]}
-                    isExpanded={expandedCode === link.short_code}
-                    isDeleting={deletingCode === link.short_code}
-                    onCopy={handleCopy}
-                    onToggleStats={toggleStats}
-                    onDelete={handleDeleteLink}
-                  />
-                ))}
+              <div className="flex flex-col gap-6">
+                {/* Active Links Section */}
+                {activeLinks.length > 0 && (
+                  <div className="flex flex-col divide-y divide-gray-700">
+                    {activeLinks.map((link) => (
+                      <LinkListItem
+                        key={link.id || link.short_code}
+                        link={link}
+                        stats={statsState[link.short_code]}
+                        isExpanded={expandedCode === link.short_code}
+                        isDeleting={deletingCode === link.short_code}
+                        isUpdatingStatus={
+                          updatingStatusCode === link.short_code
+                        }
+                        onCopy={handleCopy}
+                        onToggleStats={toggleStats}
+                        onEdit={handleEditLink}
+                        onPauseResume={handlePauseResume}
+                        onDelete={handleDeleteLink}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {/* Expired Links Section - Accordion (closed by default) */}
+                {expiredLinks.length > 0 && (
+                  <Accordion
+                    defaultExpandedKeys={[]} // Closed by default
+                    selectionMode="single"
+                    className="border border-gray-700 rounded-lg"
+                  >
+                    <AccordionItem
+                      key="expired"
+                      aria-label="Expired Links"
+                      title={
+                        <div className="flex items-center gap-2">
+                          <Icon
+                            icon="mdi:clock-alert-outline"
+                            className="w-5 h-5 text-red-400"
+                          />
+                          <span className="text-white font-medium">
+                            Expired Links ({expiredLinks.length})
+                          </span>
+                        </div>
+                      }
+                      classNames={{
+                        trigger: "px-4 py-3",
+                        content: "px-0 py-0",
+                      }}
+                    >
+                      <div className="flex flex-col divide-y divide-gray-700">
+                        {expiredLinks.map((link) => (
+                          <LinkListItem
+                            key={link.id || link.short_code}
+                            link={link}
+                            stats={statsState[link.short_code]}
+                            isExpanded={expandedCode === link.short_code}
+                            isDeleting={deletingCode === link.short_code}
+                            isUpdatingStatus={
+                              updatingStatusCode === link.short_code
+                            }
+                            onCopy={handleCopy}
+                            onToggleStats={toggleStats}
+                            onEdit={handleEditLink}
+                            onPauseResume={handlePauseResume}
+                            onDelete={handleDeleteLink}
+                          />
+                        ))}
+                      </div>
+                    </AccordionItem>
+                  </Accordion>
+                )}
               </div>
             )}
           </div>
@@ -408,15 +749,29 @@ export default function Dashboard() {
       </div>
 
       {isAuthenticated && (
-        <CreateLinkModal
-          isOpen={isCreateLinkModalOpen}
-          onOpenChange={handleModalClose}
-          url={newUrl}
-          error={newUrlError}
-          isLoading={creating}
-          onUrlChange={handleUrlChange}
-          onSubmit={handleCreateLink}
-        />
+        <>
+          <CreateLinkModal
+            isOpen={isCreateLinkModalOpen}
+            onOpenChange={handleModalClose}
+            url={newUrl}
+            error={newUrlError}
+            isLoading={creating}
+            onUrlChange={handleUrlChange}
+            onSubmit={handleCreateLink}
+          />
+          {editingLink && (
+            <EditLinkModal
+              isOpen={isEditLinkModalOpen}
+              onOpenChange={handleEditModalClose}
+              originalUrl={editUrl}
+              expiresAt={editingLink.expires_at}
+              error={editUrlError}
+              isLoading={updating}
+              onUrlChange={handleEditUrlChange}
+              onSubmit={handleUpdateLink}
+            />
+          )}
+        </>
       )}
     </div>
   );

@@ -14,6 +14,8 @@ export const mapApiErrorMessage = (message: string, code?: string): string => {
       return message || "Short link not found.";
     case "HTTP_410":
       return message || "This short link has expired.";
+    case "HTTP_422":
+      return message || "Validation error. Please check your input.";
     case "NETWORK_ERROR":
       return message || "Network error. Please try again.";
     default:
