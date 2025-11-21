@@ -116,9 +116,20 @@ class ApiService {
         return !!localStorage.getItem('sniply_user');
     }
 
+    private getAuthToken(): string | null {
+        if (typeof window === 'undefined') return null;
+
+        // Try to get token from localStorage
+        const token = localStorage.getItem('sniply_auth_token');
+        if (token) return token;
+
+        return null;
+    }
+
     private clearAuth(): void {
         if (typeof window === 'undefined') return;
         localStorage.removeItem('sniply_user');
+        localStorage.removeItem('sniply_auth_token');
     }
 
     /**
@@ -275,6 +286,10 @@ class ApiService {
 
         if (typeof window !== 'undefined') {
             localStorage.setItem('sniply_user', JSON.stringify(transformedUser));
+            // Store token for cross-origin requests
+            if (response.data.token) {
+                localStorage.setItem('sniply_auth_token', response.data.token);
+            }
         }
 
         return {
@@ -309,6 +324,10 @@ class ApiService {
 
         if (typeof window !== 'undefined') {
             localStorage.setItem('sniply_user', JSON.stringify(transformedUser));
+            // Store token for cross-origin requests
+            if (response.data.token) {
+                localStorage.setItem('sniply_auth_token', response.data.token);
+            }
         }
 
         return {
@@ -405,6 +424,30 @@ class ApiService {
 
         const queryString = params.toString();
         return queryString ? `${url}?${queryString}` : url;
+    }
+
+    async fetchAuthenticatedImage(url: string): Promise<Blob> {
+        const token = this.getAuthToken();
+        const headers: HeadersInit = {
+            'Accept': 'image/*',
+        };
+
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const response = await fetch(url, {
+            method: 'GET',
+            headers,
+            credentials: 'include', // Still include cookies as fallback
+            mode: 'cors',
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+        }
+
+        return response.blob();
     }
 
     async logout(): Promise<ApiResponse<null>> {

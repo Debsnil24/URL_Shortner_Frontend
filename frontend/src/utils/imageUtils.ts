@@ -52,6 +52,37 @@ export const fetchImageAsDataUrl = async (url: string): Promise<string> => {
 };
 
 /**
+ * Fetch image with authentication token and convert to data URL
+ */
+export const fetchAuthenticatedImageAsDataUrl = async (
+    url: string,
+    token?: string
+): Promise<string> => {
+    const headers: HeadersInit = {
+        Accept: "image/png,image/*,*/*",
+    };
+    
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    const response = await fetch(url, {
+        credentials: "include",
+        mode: "cors",
+        headers,
+    });
+
+    if (!response.ok) {
+        throw new Error(
+            `Failed to fetch image: ${response.status} ${response.statusText}`
+        );
+    }
+
+    const blob = await response.blob();
+    return blobToDataUrl(blob);
+};
+
+/**
  * Wait for all images in a container to load
  */
 export const waitForImages = async (

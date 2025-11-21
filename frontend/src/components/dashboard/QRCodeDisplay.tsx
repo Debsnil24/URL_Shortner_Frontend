@@ -1,6 +1,7 @@
 import { resolveShortUrl } from "@/utils/urlUtils";
 import Image from "next/image";
-import { RefObject, useMemo } from "react";
+import { RefObject, useEffect, useMemo, useRef, useState } from "react";
+import { apiService } from "@/services/api";
 
 interface QRCodeDisplayProps {
   qrCodeUrl: string;
@@ -24,13 +25,60 @@ export default function QRCodeDisplay({
   showTagline,
   containerRef,
 }: QRCodeDisplayProps) {
-  // Add cache-bust to ensure fresh request (not from disk cache)
-  // Generate fresh URL each time qrCodeUrl changes
+  const [imageSrc, setImageSrc] = useState<string>("");
+  const [imageError, setImageError] = useState(false);
+  const blobUrlRef = useRef<string | null>(null);
+
+  // Add cache-bust to ensure fresh request
   const freshQrCodeUrl = useMemo(() => {
     if (!qrCodeUrl) return qrCodeUrl;
-    const separator = qrCodeUrl.includes("?") ? "&" : "?";
-    return `${qrCodeUrl}${separator}_t=${Date.now()}`;
+    
+    // Remove existing _t parameter to avoid duplicates
+    const cleanUrl = qrCodeUrl.split('&_t=')[0].split('?_t=')[0];
+    const separator = cleanUrl.includes("?") ? "&" : "?";
+    return `${cleanUrl}${separator}_t=${Date.now()}`;
   }, [qrCodeUrl]);
+
+  // Fetch image with Authorization header for cross-origin requests
+  useEffect(() => {
+    if (!freshQrCodeUrl) {
+      setImageSrc("");
+      setImageError(false);
+      return;
+    }
+
+    let isMounted = true;
+    const abortController = new AbortController();
+
+    apiService.fetchAuthenticatedImage(freshQrCodeUrl)
+      .then((blob) => {
+        if (!isMounted) return;
+        const url = URL.createObjectURL(blob);
+        // Clean up previous blob URL
+        if (blobUrlRef.current) {
+          URL.revokeObjectURL(blobUrlRef.current);
+        }
+        blobUrlRef.current = url;
+        setImageSrc(url);
+        setImageError(false);
+      })
+      .catch((error) => {
+        if (!isMounted || error.name === 'AbortError') return;
+        console.error("Failed to load QR code image:", error);
+        setImageError(true);
+        // Fallback to direct URL
+        setImageSrc(freshQrCodeUrl);
+      });
+
+    return () => {
+      isMounted = false;
+      abortController.abort();
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = null;
+      }
+    };
+  }, [freshQrCodeUrl]);
 
   return (
     <div
@@ -54,12 +102,18 @@ export default function QRCodeDisplay({
         className="bg-white p-4 rounded-lg"
         style={{ backgroundColor: COLORS.white }}
       >
-        <img
-          src={freshQrCodeUrl}
-          alt="QR Code"
-          className="w-64 h-64"
-          key={freshQrCodeUrl}
-        />
+        {imageError ? (
+          <div className="w-64 h-64 flex items-center justify-center text-gray-400">
+            Failed to load QR code
+          </div>
+        ) : (
+          <img
+            src={imageSrc || freshQrCodeUrl}
+            alt="QR Code"
+            className="w-64 h-64"
+            key={freshQrCodeUrl}
+          />
+        )}
       </div>
       {showTagline && (
         <div className="flex flex-col items-center justify-center mt-4">
