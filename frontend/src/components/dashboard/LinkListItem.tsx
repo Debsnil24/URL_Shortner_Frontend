@@ -243,15 +243,17 @@ function LinkListItem({
           >
             {isExpanded ? "Hide stats" : "View stats"}
           </Button>
-          <Button
-            size="sm"
-            variant="bordered"
-            isIconOnly
-            className="bg-white/5 text-gray-200 border-gray-600 hover:bg-white/10"
-            onPress={() => setIsQRModalOpen(true)}
-          >
-            <Icon icon="mdi:qrcode" className="w-4 h-4" />
-          </Button>
+          {!isExpired && (
+            <Button
+              size="sm"
+              variant="bordered"
+              isIconOnly
+              className="bg-white/5 text-gray-200 border-gray-600 hover:bg-white/10"
+              onPress={() => setIsQRModalOpen(true)}
+            >
+              <Icon icon="mdi:qrcode" className="w-4 h-4" />
+            </Button>
+          )}
           <Button
             size="sm"
             color="warning"
@@ -309,15 +311,17 @@ function LinkListItem({
           >
             <Icon icon="mdi:chart-line" className="w-4 h-4" />
           </Button>
-          <Button
-            size="sm"
-            variant="bordered"
-            isIconOnly
-            className="bg-white/5 text-gray-200 border-gray-600 hover:bg-white/10"
-            onPress={() => setIsQRModalOpen(true)}
-          >
-            <Icon icon="mdi:qrcode" className="w-4 h-4" />
-          </Button>
+          {!isExpired && (
+            <Button
+              size="sm"
+              variant="bordered"
+              isIconOnly
+              className="bg-white/5 text-gray-200 border-gray-600 hover:bg-white/10"
+              onPress={() => setIsQRModalOpen(true)}
+            >
+              <Icon icon="mdi:qrcode" className="w-4 h-4" />
+            </Button>
+          )}
           <Button
             size="sm"
             color="warning"
